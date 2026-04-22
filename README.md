@@ -63,20 +63,89 @@ Stop everything with `Ctrl-C` in each terminal — the embedded Postgres shuts d
 
 ## Running locally — the "real Postgres" path
 
-Skip this unless you want to run the issuer exactly as it will run in production (against an externally-managed Postgres). The flow is the same as above, except you provision your own DB and omit the `--spring.profiles.active=local` flag.
+Skip this unless you want to run the issuer exactly as it will run in production — against an externally-managed Postgres. The protocol flow is identical to the easy path; only the database lifecycle differs. Three backing options: **Docker**, **native Windows**, **native macOS/Linux**. The issuer expects a DB named `studentzkp` owned by a user `studentzkp` with password `studentzkp` (override via `DB_USERNAME` / `DB_PASSWORD` env vars).
 
-The issuer expects a DB named `studentzkp` owned by a user `studentzkp` with password `studentzkp` (override via `DB_USERNAME` / `DB_PASSWORD` env vars). Pick one path:
+### Full walkthrough with Docker
 
-<details><summary><b>Docker (one command)</b></summary>
+Prereqs: Docker Desktop (macOS/Windows) or `docker` CLI + daemon (Linux). Verify: `docker --version` and `docker ps` both work.
 
+**1. Start the container.** `-d` runs detached, `--name` labels it so we can reference it later, `-p 5432:5432` binds the Postgres port to your host.
 ```bash
 docker run -d --name studentzkp-pg \
-  -e POSTGRES_DB=studentzkp -e POSTGRES_USER=studentzkp -e POSTGRES_PASSWORD=studentzkp \
-  -p 5432:5432 postgres:16
+  -e POSTGRES_DB=studentzkp \
+  -e POSTGRES_USER=studentzkp \
+  -e POSTGRES_PASSWORD=studentzkp \
+  -p 5432:5432 \
+  postgres:16
 ```
-</details>
+If port 5432 is already taken (another Postgres on the host?), remap to e.g. `-p 5433:5432` and set `DB_URL=jdbc:postgresql://localhost:5433/studentzkp` before `bootRun`.
 
-<details><summary><b>Native install — Windows</b></summary>
+**2. Wait for Postgres to finish starting.** First boot initializes the data directory; takes ~3–5 s. Confirm:
+```bash
+docker logs studentzkp-pg --tail 5
+```
+Healthy output ends with `database system is ready to accept connections`. If you see that twice (bootstrap + restart), it's fully ready.
+
+**3. Sanity check the connection.** From inside the container — no host `psql` needed:
+```bash
+docker exec studentzkp-pg psql -U studentzkp -d studentzkp -c '\conninfo'
+```
+Expect: `You are connected to database "studentzkp" as user "studentzkp"`.
+
+**4. Start the issuer — without the `local` profile.** Flyway auto-applies all migrations on first boot.
+```bash
+cd issuer-backend
+./gradlew bootRun
+```
+Expect log lines like `Successfully applied 3 migrations to schema "public"` followed by `Started StudentZkpApplication`. On a second run you'll see `No migration necessary`.
+
+**5. Start the verifier.**
+```bash
+cd verifier-web
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+**6. Mint + verify** — same as the easy path:
+```bash
+bash scripts/demo.sh
+```
+Copy the SD-JWT-VC → paste into <http://localhost:5173> → **Verify**.
+
+#### Day-to-day lifecycle
+
+| What you want | Command |
+|---|---|
+| Stop Postgres (keeps data) | `docker stop studentzkp-pg` |
+| Start it again | `docker start studentzkp-pg` |
+| Tail the logs | `docker logs -f studentzkp-pg` |
+| Open a psql shell | `docker exec -it studentzkp-pg psql -U studentzkp` |
+| Check what credentials exist | `docker exec studentzkp-pg psql -U studentzkp -d studentzkp -c 'SELECT id, status_idx, revoked FROM credential;'` |
+| Fully delete and reset (⚠️ wipes data) | `docker rm -f studentzkp-pg` then rerun step 1 |
+
+#### Resetting between test scenarios
+
+The 7 test scenarios in "Testing it as intended" mostly work on independently-minted credentials, so you don't need to reset the DB between them. But if you want a clean slate (e.g. to re-run the revocation scenario with a fresh `status_idx`):
+
+```bash
+# Soft reset: truncate credentials + integrity log, keep seed data
+docker exec studentzkp-pg psql -U studentzkp -d studentzkp -c \
+  'TRUNCATE credential, integrity_assertions RESTART IDENTITY CASCADE;'
+
+# Hard reset: nuke the container + volume, re-run step 1
+docker rm -f studentzkp-pg
+```
+
+After a hard reset, restart the issuer — Flyway re-runs all migrations. The issuer's signing key is regenerated too (see ROADMAP → Known issues), so any previously-minted credentials will fail signature verification.
+
+#### Troubleshooting
+
+- **`bootRun` logs `Connection refused`** — container not listening yet. Run `docker ps` to confirm status `Up`, then retry after a few seconds. If it never comes up, `docker logs studentzkp-pg` will show why (common cause: port 5432 already bound on host).
+- **`bootRun` logs `FATAL: password authentication failed`** — you started the container once with a different password, then rebooted with env vars that Postgres ignores on second boot (env vars only take effect on a fresh volume). Fix: `docker rm -f studentzkp-pg` and rerun step 1.
+- **Flyway reports `checksum mismatch`** — a migration file was edited after first apply. During development, reset the DB (hard reset above); never edit an applied migration in prod.
+
+### Native install — Windows
 
 ```powershell
 winget install PostgreSQL.PostgreSQL.16
@@ -85,10 +154,11 @@ Then from a shell (add `C:\Program Files\PostgreSQL\16\bin\` to PATH or use the 
 ```bash
 psql -U postgres -c "CREATE USER studentzkp WITH PASSWORD 'studentzkp';"
 psql -U postgres -c "CREATE DATABASE studentzkp OWNER studentzkp;"
+psql -h localhost -U studentzkp -d studentzkp -c '\conninfo'   # sanity check
 ```
-</details>
+Then run the issuer **without** the `local` profile: `cd issuer-backend && ./gradlew bootRun`.
 
-<details><summary><b>Native install — macOS / Linux</b></summary>
+### Native install — macOS / Linux
 
 ```bash
 # macOS
@@ -99,10 +169,9 @@ sudo apt-get install -y postgresql-16 && sudo systemctl start postgresql
 # both
 sudo -u postgres psql -c "CREATE USER studentzkp WITH PASSWORD 'studentzkp';"
 sudo -u postgres psql -c "CREATE DATABASE studentzkp OWNER studentzkp;"
+psql -h localhost -U studentzkp -d studentzkp -c '\conninfo'   # sanity check
 ```
-</details>
-
-Sanity check: `psql -h localhost -U studentzkp -d studentzkp -c '\conninfo'` should connect. Then run the issuer **without** the `local` profile — `./gradlew bootRun`. Flyway auto-applies migrations on first boot.
+Then run the issuer **without** the `local` profile: `cd issuer-backend && ./gradlew bootRun`.
 
 ## Testing it as intended
 
