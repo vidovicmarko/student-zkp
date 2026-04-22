@@ -10,8 +10,13 @@ crate-type = ["cdylib", "lib"]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# TODO: Phase 2 — uncomment when adding BBS+ support
-# dock_crypto = { version = "0.35", features = ["bbs_plus"] }
+# TODO Phase 2 — uncomment when BBS+ issuance lands.
+# Both crates are audited, Apache-2.0, and support BLS12-381 (final_plan §5.2, §10).
+# dock_crypto = { version = "0.35", features = ["bbs_plus", "accumulator"] }
 
-# TODO: Phase 3 — uncomment for Android UniFFI bindings
-# uniffi = "0.28"
+# TODO Phase 0/2 — uncomment to generate UniFFI bindings for Android.
+# See crypto-core/src/studentzkp_crypto.udl for the interface.
+# uniffi = { version = "0.28", features = ["build"] }
+#
+# [build-dependencies]
+# uniffi = { version = "0.28", features = ["build"] }

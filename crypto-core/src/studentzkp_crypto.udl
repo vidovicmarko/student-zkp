@@ -1,0 +1,21 @@
+// UniFFI interface for the StudentZK crypto core (final_plan §5.2).
+// Kotlin bindings are generated with:
+//   uniffi-bindgen generate src/studentzkp_crypto.udl --language kotlin --out-dir ../holder-android/app/src/main/java
+// Activate by uncommenting `uniffi` in Cargo.toml (Phase 2).
+
+namespace studentzkp_crypto {
+    sequence<bytes> bbs_keygen();
+    bytes bbs_sign(sequence<bytes> messages, bytes secret_key);
+    bytes bbs_derive_proof(
+        bytes signature,
+        sequence<bytes> messages,
+        sequence<u32> disclosed_indices,
+        bytes nonce
+    );
+    boolean bbs_verify_proof(
+        bytes proof,
+        bytes public_key,
+        sequence<bytes> disclosed_messages,
+        bytes nonce
+    );
+};

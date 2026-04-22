@@ -12,7 +12,17 @@ spring:
     locations: classpath:db/migration
 server:
   port: 8080
+
 studentzkp:
   issuer:
     id: "https://issuer.studentzkp.hr"
     name: "FER Zagreb"
+  # Play Integrity (final_plan §5.8 Layer 2). All three required before enabling
+  # non-stub verification. In dev the StubIntegrityService is active.
+  playIntegrity:
+    projectNumber: ${PLAY_INTEGRITY_PROJECT_NUMBER:0}
+    serviceAccountJson: ${PLAY_INTEGRITY_SA_JSON:}
+    enforceInProd: true
+  statusList:
+    uri: "https://issuer.studentzkp.hr/statuslist/uni-2026.json"
+    capacity: 131072

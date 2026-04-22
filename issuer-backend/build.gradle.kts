@@ -19,6 +19,14 @@ java {
 
 repositories {
     mavenCentral()
+    // TODO Phase 1 — EUDI libraries publish to GitHub Packages; uncomment when wiring them in.
+    // maven {
+    //     url = uri("https://maven.pkg.github.com/eu-digital-identity-wallet/eudi-lib-jvm-openid4vci-kt")
+    //     credentials {
+    //         username = System.getenv("GITHUB_ACTOR")
+    //         password = System.getenv("GITHUB_TOKEN")
+    //     }
+    // }
 }
 
 dependencies {
@@ -29,16 +37,26 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.nimbusds:nimbus-jose-jwt:10.0.1")
+
+    // Flyway migrations (final_plan §5.1).
+    implementation("org.flywaydb:flyway-core")
+    runtimeOnly("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
+
+    // JNA binding to the Rust studentzkp-crypto cdylib (final_plan §5.2).
+    implementation("net.java.dev.jna:jna:5.15.0")
+
+    // Play Integrity server-side verification (final_plan §5.8 Layer 2).
+    implementation("com.google.apis:google-api-services-playintegrity:v1-rev20250301-2.0.0")
+
+    // TODO Phase 1 — SD-JWT-VC + OID4VCI + OID4VP via walt.id / EUDI.
+    // implementation("id.walt:waltid-identity:1.0.0")
+    // implementation("eu.europa.ec.eudi:eudi-lib-jvm-openid4vci-kt:0.9.0")
+    // implementation("eu.europa.ec.eudi:eudi-lib-jvm-openid4vp-kt:0.9.0")
+    // implementation("eu.europa.ec.eudi:eudi-lib-jvm-sdjwt-kt:0.9.0")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-
-    // TODO: Phase 1 — SD-JWT-VC issuance
-    // implementation("eu.europa.ec.eudi:eudi-lib-jvm-openid4vci-kt:0.4.0")
-    // implementation("eu.europa.ec.eudi:eudi-lib-jvm-sdjwt-kt:0.5.0")
-
-    // TODO: Phase 2 — BBS+ via Rust JNI
-    // implementation("net.java.dev.jna:jna:5.14.0")
 }
 
 tasks.withType<KotlinCompile> {
