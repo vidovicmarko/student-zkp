@@ -1,0 +1,7 @@
+# Copy this file to application-local.yml and fill in your local values.
+# application-local.yml is gitignored — never commit real credentials.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/studentzkp
+    username: studentzkp
+    password: changeme

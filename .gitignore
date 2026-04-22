@@ -1,0 +1,29 @@
+# Java / Kotlin
+build/
+.gradle/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Node
+node_modules/
+dist/
+
+# Rust
+target/
+
+# Android
+local.properties
+holder-android/build/
+
+# IDE
+.idea/
+.vscode/
+
+# Secrets
+*.env
+application-local.yml
+
+# OS
+.DS_Store
+Thumbs.db

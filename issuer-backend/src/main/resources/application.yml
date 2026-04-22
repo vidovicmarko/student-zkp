@@ -1,0 +1,18 @@
+spring:
+  application.name: student-zkp-issuer
+  datasource:
+    url: jdbc:postgresql://localhost:5432/studentzkp
+    username: ${DB_USERNAME:studentzkp}
+    password: ${DB_PASSWORD:studentzkp}
+  jpa:
+    hibernate.ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+server:
+  port: 8080
+studentzkp:
+  issuer:
+    id: "https://issuer.studentzkp.hr"
+    name: "FER Zagreb"
