@@ -43,6 +43,12 @@ dependencies {
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
 
+    // Zero-install local dev: a real Postgres 16 binary downloaded + started in
+    // the same JVM under the `local` Spring profile. Active in dev only — prod
+    // builds should exclude this configuration. See EmbeddedPostgresConfig.kt.
+    implementation("io.zonky.test:embedded-postgres:2.0.7")
+    implementation(enforcedPlatform("io.zonky.test.postgres:embedded-postgres-binaries-bom:16.2.0"))
+
     // JNA binding to the Rust studentzkp-crypto cdylib (final_plan §5.2).
     implementation("net.java.dev.jna:jna:5.15.0")
 

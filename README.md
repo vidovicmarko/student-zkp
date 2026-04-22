@@ -17,22 +17,57 @@ See `final_plan_md.md` for the full technical spec, `docs/architecture.md` for t
 
 ## Prerequisites
 
-- JDK 21 (Temurin)
-- Node 20+
-- Rust 1.75+ (`rustup target add aarch64-linux-android x86_64-linux-android`)
-- PostgreSQL 16+
-- Android Studio + NDK r27
-- Google Cloud project with Play Integrity API enabled (Phase 1+)
+Minimum for the Phase 1 happy path (everything in this README):
 
-## Phase 1 demo — issuer → verifier end-to-end
+- **JDK 21** (Temurin recommended). Verify: `java -version` prints `21`.
+- **Node 20+** (for the verifier-web SPA). Verify: `node -v` prints `v20` or later.
+- **Bash + `curl` + `jq`** (for `scripts/demo.sh`). On Windows, Git Bash ships with `curl`; `jq` via `winget install jqlang.jq` or `choco install jq`.
 
-Phase 1 ships the SD-JWT-VC happy path: the issuer mints a credential for a seeded student, the verifier-web app takes the compact string, fetches JWKS + status list from the issuer, and displays the selectively-disclosed claims — all client-side in the browser.
+Only needed for later phases (skip for now):
 
-Three terminals, one flow.
+- Rust 1.75+ + Android NDK r27 — `holder-android` + `crypto-core` (Phase 2/3)
+- A separately-installed Postgres 16 — only if you don't want the embedded path below
+- Google Cloud project with Play Integrity API — Phase 3 anti-abuse
 
-**1. Postgres.** Flyway owns the schema; you just need an empty DB named `studentzkp` owned by a user `studentzkp` with password `studentzkp` (matches `application.yml` defaults — override with `DB_USERNAME` / `DB_PASSWORD` env vars if you prefer). Pick one of the three paths below.
+## Running locally — the easy path
 
-<details><summary><b>Option A — Docker (one command)</b></summary>
+This is the recommended way to test on your own machine. Zero Postgres install, zero Docker. The issuer boots an embedded Postgres 16 inside its own JVM under the `local` Spring profile.
+
+> **First boot only:** Zonky downloads a Postgres 16 binary (~60MB) into `~/.embedpostgresql/`. This takes 15–30 s on a good connection. Subsequent boots are instant. If you're behind a corporate proxy, set `HTTPS_PROXY` before running. Windows anti-virus may scan the binary on first launch; that's fine, just slower.
+
+Three terminals, in order.
+
+**Terminal 1 — issuer**
+```bash
+cd issuer-backend
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
+Wait for `Started StudentZkpApplication`. The issuer is now on <http://localhost:8080>.
+
+**Terminal 2 — verifier**
+```bash
+cd verifier-web
+cp .env.example .env.local
+npm install
+npm run dev
+```
+Vite serves the SPA on <http://localhost:5173>.
+
+**Terminal 3 — mint + verify**
+```bash
+bash scripts/demo.sh
+```
+This POSTs to `/dev/credential/0036123456`, prints the SD-JWT-VC plus each disclosure decoded to `[salt, name, value]`, and reminds you to paste the SD-JWT-VC into the verifier. You'll see `is_student=true` and `age_equal_or_over.18=true`; the name/DOB/student-number hashes stay bound to the credential but never leave your browser.
+
+Stop everything with `Ctrl-C` in each terminal — the embedded Postgres shuts down with the issuer, nothing lingers.
+
+## Running locally — the "real Postgres" path
+
+Skip this unless you want to run the issuer exactly as it will run in production (against an externally-managed Postgres). The flow is the same as above, except you provision your own DB and omit the `--spring.profiles.active=local` flag.
+
+The issuer expects a DB named `studentzkp` owned by a user `studentzkp` with password `studentzkp` (override via `DB_USERNAME` / `DB_PASSWORD` env vars). Pick one path:
+
+<details><summary><b>Docker (one command)</b></summary>
 
 ```bash
 docker run -d --name studentzkp-pg \
@@ -41,21 +76,19 @@ docker run -d --name studentzkp-pg \
 ```
 </details>
 
-<details><summary><b>Option B — Native install on Windows</b></summary>
+<details><summary><b>Native install — Windows</b></summary>
 
-Install Postgres 16 via winget (opens as admin):
 ```powershell
 winget install PostgreSQL.PostgreSQL.16
 ```
-Then from a shell (`psql` is in `C:\Program Files\PostgreSQL\16\bin\`; add to PATH or use the full path):
+Then from a shell (add `C:\Program Files\PostgreSQL\16\bin\` to PATH or use the full path):
 ```bash
 psql -U postgres -c "CREATE USER studentzkp WITH PASSWORD 'studentzkp';"
 psql -U postgres -c "CREATE DATABASE studentzkp OWNER studentzkp;"
 ```
-Alternative: the EDB graphical installer at <https://www.postgresql.org/download/windows/> — pick the same values in the wizard and skip Stack Builder at the end.
 </details>
 
-<details><summary><b>Option C — Native install on macOS / Linux</b></summary>
+<details><summary><b>Native install — macOS / Linux</b></summary>
 
 ```bash
 # macOS
@@ -69,28 +102,75 @@ sudo -u postgres psql -c "CREATE DATABASE studentzkp OWNER studentzkp;"
 ```
 </details>
 
-Sanity check (any option): `psql -h localhost -U studentzkp -d studentzkp -c '\conninfo'` should connect. Flyway runs migrations on the issuer's first boot — no schema setup needed.
+Sanity check: `psql -h localhost -U studentzkp -d studentzkp -c '\conninfo'` should connect. Then run the issuer **without** the `local` profile — `./gradlew bootRun`. Flyway auto-applies migrations on first boot.
 
-**2. Issuer.** Generates an ES256 signing key at boot, serves `/.well-known/jwks.json` + `/statuslist/uni-2026.json`, and exposes a dev-only `/dev/credential/{studentId}` shortcut.
+## Testing it as intended
+
+The end-to-end flow should convince you of four properties: (a) the issuer's signature is load-bearing, (b) selective disclosure actually hides what it says it hides, (c) disclosures can't be forged, (d) revocation propagates to verifiers without any online check against the issuer. Walk through the scenarios below after a successful happy path.
+
+Keep the issuer and verifier running from the previous section. Every scenario starts by minting a fresh credential and copying the `sdJwt` string.
+
+### 1. Happy path — signature + disclosure hashes valid
+
+1. `bash scripts/demo.sh`, copy the `── SD-JWT-VC (compact) ──` block.
+2. Paste into <http://localhost:5173>, click **Verify**.
+3. Expect: green "Credential verified" banner; the **Revealed attributes** table contains `is_student: true` and `age_equal_or_over: {"18": true}`; the `Hidden disclosures still bound to this credential` count is nonzero (those are the name hashes, student ID, etc. — present in the credential but not revealed).
+
+### 2. Privacy claim — name + DOB never travel
+
+Decode the JWT payload manually (paste it into <https://jwt.io> offline or use `jq`):
+
 ```bash
-cd issuer-backend
-./gradlew bootRun
+SDJWT="<paste compact string>"
+echo "${SDJWT%%~*}" | awk -F. '{print $2}' \
+  | tr '_-' '/+' | base64 -d 2>/dev/null | jq .
 ```
 
-**3. Verifier.** Static SPA — the issuer URL is the only config.
-```bash
-cd verifier-web
-cp .env.example .env.local        # VITE_ISSUER_BASE_URL=http://localhost:8080
-npm install
-npm run dev
-```
+Expect: the payload contains an `_sd` array of SHA-256 hashes, plus `valid_until` and `status` (always-disclosed). You should **not** see `given_name`, `family_name`, `date_of_birth`, or `student_id` in plaintext anywhere — those live only in the `~disclosure~` segments, and only the ones you choose to pass travel with the credential.
 
-**4. Run the demo.** Mints Ana Anić's credential and prints the SD-JWT-VC plus human-readable disclosures.
-```bash
-bash scripts/demo.sh
-```
+### 3. Tamper detection — flip a byte in the JWT
 
-Copy the printed SD-JWT-VC, open <http://localhost:5173>, paste it in, and click **Verify**. You'll see `is_student=true` and `age_equal_or_over.18=true`; the name/DOB/student-number hashes stay bound to the credential but never leave your browser.
+1. Mint a fresh credential.
+2. In the pasted string, change one character in the JWT portion (before the first `~`). Example: the last char of the signature.
+3. Click **Verify**.
+4. Expect: red "Verification failed" banner, error mentions `signature verification failed` — `jose` rejected the JWS because the signature no longer matches the JWKS public key.
+
+### 4. Tamper detection — forge a disclosure
+
+1. Mint a fresh credential.
+2. Decode one disclosure (the segments after `~`): base64url → JSON `[salt, name, value]`. Change `false` → `true` (or similar), re-encode to base64url, splice back into the compact string.
+3. Click **Verify**.
+4. Expect: red banner with `Disclosure rejected: its hash is not present in the issuer-signed _sd array. The SD-JWT was tampered with or a disclosure was forged.`
+
+### 5. Revocation — issuer revokes, verifier sees it
+
+1. `bash scripts/demo.sh`. Note the printed `Credential ID`.
+2. Revoke it:
+   ```bash
+   curl -X POST http://localhost:8080/dev/credential/<credentialId>/revoke
+   ```
+3. Re-paste the original SD-JWT-VC into the verifier, click **Verify**.
+4. Expect: red "Credential REVOKED" banner. The verifier fetched `/statuslist/uni-2026.json`, inflated the bitstring, and found bit `statusIdx = 1`.
+5. **Why this matters:** the verifier made no authenticated request to the issuer — the status list is a public static resource that leaks nothing about *which* credential is being checked.
+
+### 6. Offline / stale status — status list unreachable
+
+This tests the "fail soft on revocation, fail hard on signature" policy (`verify.ts` catches errors from the status list fetch but rethrows everything else). Because JWKS and the status list are both served by the dev issuer today, you need to block just the status list request to test this cleanly:
+
+1. Mint a fresh credential, keep the issuer running.
+2. Open the verifier in the browser, open devtools → Network tab.
+3. Right-click any request, **Block request URL**, enter `http://localhost:8080/statuslist/uni-2026.json`, confirm.
+4. Paste the SD-JWT-VC, click **Verify**.
+5. Expect: green "Credential verified" banner with an inline caveat `(status list unreachable — result shown against last-known state)`.
+
+Signature verification still passes (JWKS fetch not blocked), so the verifier trusts the credential but flags its freshness as unknown — exactly what a kiosk with a flaky uplink should do.
+
+### 7. Sanity: the issuer's public key, directly
+
+```bash
+curl -s http://localhost:8080/.well-known/jwks.json | jq .
+```
+Expect: a JWKS with one `EC P-256` key, `use: sig`, `alg: ES256`, and the same `kid` that appears in the JWT header of any credential from step 1.
 
 ### What's working vs deferred
 
