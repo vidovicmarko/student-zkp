@@ -12,9 +12,10 @@ import java.util.UUID
 
 // Dev shortcut for the "can the verifier see revocations?" test path.
 // Flips `revoked=true` on the credential row; the next /statuslist/*.json fetch
-// will have the corresponding bit set. Disabled under the "prod" profile.
+// will have the corresponding bit set. Active only under the "dev-shortcut"
+// Spring profile.
 @RestController
-@Profile("!prod")
+@Profile("dev-shortcut")
 class DevRevocationController(
     private val credentials: CredentialRepository,
 ) {

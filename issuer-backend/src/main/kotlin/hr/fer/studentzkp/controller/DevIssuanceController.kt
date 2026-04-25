@@ -8,11 +8,11 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 
 // Developer shortcut: issue an SD-JWT-VC for a student directly, skipping the
-// full OID4VCI pre-authorized-code dance. Disabled under the "prod" profile.
-// Real holder wallets will go through /credential-offer + /token + /credential,
-// which is Phase 1.5 work.
+// full OID4VCI pre-authorized-code dance. Active only under the "dev-shortcut"
+// Spring profile (auto-enabled by the "local" profile group). Real holder
+// wallets go through /credential-offer + /token + /credential.
 @RestController
-@Profile("!prod")
+@Profile("dev-shortcut")
 class DevIssuanceController(
     private val issuanceService: StudentIssuanceService,
 ) {

@@ -55,6 +55,11 @@ dependencies {
     // Play Integrity server-side verification (final_plan §5.8 Layer 2).
     implementation("com.google.apis:google-api-services-playintegrity:v1-rev20250301-2.0.0")
 
+    // OpenAPI / Swagger UI for the issuer's HTTP surface. Auto-generates
+    // /v3/api-docs (machine-readable) + /swagger-ui.html (browser). Consumed
+    // locally by the swagger-api MCP server pointed at /v3/api-docs.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0")
+
     // TODO Phase 1 — SD-JWT-VC + OID4VCI + OID4VP via walt.id / EUDI.
     // implementation("id.walt:waltid-identity:1.0.0")
     // implementation("eu.europa.ec.eudi:eudi-lib-jvm-openid4vci-kt:0.9.0")

@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(command -v gradle)",
+      "Bash(gradle --version)",
+      "Bash(cargo --version)",
+      "Bash(rustc --version)",
+      "Bash(cargo check *)",
+      "Bash(cargo search *)",
+      "Bash(cargo info *)",
+      "Bash(cargo add *)",
+      "Bash(cargo build *)",
+      "Bash(cargo tree *)",
+      "Bash(cargo remove *)",
+      "Bash(cargo test *)",
+      "Skill(update-config)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Top-level keys:', list\\(d.keys\\(\\)\\)\\); print\\('mcpServers present:', 'mcpServers' in d\\); print\\('mcpServers value type:', type\\(d.get\\('mcpServers'\\)\\).__name__ if 'mcpServers' in d else 'absent'\\); print\\('current mcpServers keys:', list\\(d.get\\('mcpServers', {}\\).keys\\(\\)\\) if isinstance\\(d.get\\('mcpServers'\\), dict\\) else 'n/a'\\)\")",
+      "Bash(python *)"
+    ]
+  }
+}

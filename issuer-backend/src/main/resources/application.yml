@@ -1,5 +1,11 @@
 spring:
   application.name: student-zkp-issuer
+  # Activating the `local` profile auto-activates `dev-shortcut`, which exposes
+  # the /dev/** endpoints used by scripts/demo.sh. Production deployments leave
+  # `dev-shortcut` off so those endpoints don't even register.
+  profiles:
+    group:
+      local: dev-shortcut
   datasource:
     url: jdbc:postgresql://localhost:5432/studentzkp
     username: ${DB_USERNAME:studentzkp}
@@ -17,6 +23,17 @@ studentzkp:
   issuer:
     id: "https://issuer.studentzkp.hr"
     name: "FER Zagreb"
+    # Persisted ES256 signing key (JWK on disk). Delete the file to rotate.
+    # Empty string → ephemeral in-memory key (only OK for unit tests).
+    keyPath: ${ISSUER_KEY_PATH:./.studentzkp/issuer-signing-key.jwk}
+    # Public-facing base URL for OID4VCI offers / token / credential endpoints.
+    # In dev this is localhost; in prod it's the same as `id`.
+    publicBaseUrl: ${ISSUER_PUBLIC_BASE_URL:http://localhost:8080}
+  oid4vci:
+    # Pre-authorized code TTL (RFC 6749 §4.1.2 — short-lived). 5 minutes is plenty.
+    offerTtlSeconds: 300
+    # Access token + c_nonce TTL. The wallet must redeem within this window.
+    tokenTtlSeconds: 600
   # Play Integrity (final_plan §5.8 Layer 2). All three required before enabling
   # non-stub verification. In dev the StubIntegrityService is active.
   playIntegrity:

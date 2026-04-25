@@ -7,14 +7,20 @@ edition = "2021"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
+# BBS+ on BLS12-381 — audited, Apache-2.0, by docknetwork (final_plan §5.2).
+# Pinning ark-* to 0.4 because bbs_plus 0.25 depends on that family.
+bbs_plus = "0.25"
+dock_crypto_utils = "0.23"
+ark-bls12-381 = "0.4"
+ark-ec = "0.4"
+ark-ff = "0.4"
+ark-serialize = "0.4"
+ark-std = { version = "0.4", features = ["getrandom"] }
+sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# TODO Phase 2 — uncomment when BBS+ issuance lands.
-# Both crates are audited, Apache-2.0, and support BLS12-381 (final_plan §5.2, §10).
-# dock_crypto = { version = "0.35", features = ["bbs_plus", "accumulator"] }
-
-# TODO Phase 0/2 — uncomment to generate UniFFI bindings for Android.
+# TODO Phase 2 — uncomment to generate UniFFI bindings for Android.
 # See crypto-core/src/studentzkp_crypto.udl for the interface.
 # uniffi = { version = "0.28", features = ["build"] }
 #

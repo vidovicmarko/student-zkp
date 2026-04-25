@@ -5,8 +5,13 @@ import com.sun.jna.Native
 
 // JNA binding to the docknetwork/crypto-backed `studentzkp-crypto` Rust cdylib
 // (final_plan §5.2). The same .so/.dylib is consumed on Android via UniFFI.
-// All functions are stubs until crypto-core lib.rs drops its todo!() bodies
-// in Phase 2.
+//
+// Status: the Rust BBS+ implementation is complete and tested (cargo test in
+// crypto-core/), but the C-ABI wrapper layer is NOT yet written. JNA cannot
+// call Rust's idiomatic `Vec<u8>` / `Result<T, String>` returns directly — it
+// needs `#[no_mangle] extern "C"` shims with raw pointers + lengths + a free
+// fn. That wrapper is the last mile before the JVM can call into the Rust
+// core; tracked under "JNI/UniFFI shim" in ROADMAP Phase 2.
 interface BbsCryptoBridge : Library {
 
     fun bbs_keygen(): KeypairBytes

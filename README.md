@@ -4,7 +4,7 @@ Privacy-preserving, machine-verifiable credentials — built on BBS+ and SD-JWT-
 
 StudentZK proves a **predicate** ("is a student", "is 18+") without revealing the holder's name, DOB, institution, or student number. The verifier is a static web page any kiosk or cashier can open — no integration, no account, no data collected.
 
-See `final_plan_md.md` for the full technical spec, `docs/architecture.md` for the v2 diagram, and `docs/threat-model.md` for the anti-abuse story.
+See `final_plan_md.md` for the full technical spec, `docs/architecture.md` for the v2 diagram, `docs/threat-model.md` for the anti-abuse story, `docs/api.md` for the HTTP API reference, and `TESTING.md` for a single-file test plan covering the SD-JWT-VC flow, the OID4VCI handshake, and the Rust crypto-core.
 
 ## Modules
 
@@ -95,9 +95,11 @@ Expect: `You are connected to database "studentzkp" as user "studentzkp"`.
 **4. Start the issuer — without the `local` profile.** Flyway auto-applies all migrations on first boot.
 ```bash
 cd issuer-backend
-./gradlew bootRun
+./gradlew bootRun --args='--spring.profiles.active=dev-shortcut'
 ```
-Expect log lines like `Successfully applied 3 migrations to schema "public"` followed by `Started StudentZkpApplication`. On a second run you'll see `No migration necessary`.
+The `dev-shortcut` profile activates the `/dev/**` helpers used by `scripts/demo.sh`. Drop it (`./gradlew bootRun`) when you want to confirm production-shape behavior — only the OID4VCI handshake and public endpoints will respond.
+
+Expect log lines like `Successfully applied 4 migrations to schema "public"` followed by `Started StudentZkpApplication`. On a second run you'll see `No migration necessary`. You'll also see one line of the form `studentzkp.admin.password not set — generated one for this boot: 'XXXX...'` — note this if you want to call `/integrity/**` or `/admin/**`.
 
 **5. Start the verifier.**
 ```bash
@@ -239,21 +241,56 @@ Signature verification still passes (JWKS fetch not blocked), so the verifier tr
 ```bash
 curl -s http://localhost:8080/.well-known/jwks.json | jq .
 ```
-Expect: a JWKS with one `EC P-256` key, `use: sig`, `alg: ES256`, and the same `kid` that appears in the JWT header of any credential from step 1.
+Expect: a JWKS with one `EC P-256` key, `use: sig`, `alg: ES256`, and the same `kid` that appears in the JWT header of any credential from step 1. The key is now persisted to `./.studentzkp/issuer-signing-key.jwk` — restart the issuer and the same `kid` survives, so credentials minted before the restart still verify after it.
+
+### 8. OID4VCI handshake — what a real wallet drives
+
+Phase 1.5 wires the three OpenID4VCI endpoints. The dev shortcut from scenario 1 is a one-call shortcut; this is what an actual wallet does.
+
+1. **Issuer mints an offer** for student `0036123456`:
+   ```bash
+   OFFER=$(curl -sX POST http://localhost:8080/dev/credential-offer/0036123456)
+   echo "$OFFER" | jq .
+   ```
+   Note `offer_id`, `pre_authorized_code`, `credential_offer_uri`, `deep_link`. The deep-link is what gets QR-encoded for the wallet.
+
+2. **Wallet fetches the offer JSON** by reference (would normally be triggered by the deep-link):
+   ```bash
+   OFFER_ID=$(echo "$OFFER" | jq -r .offer_id)
+   curl -s http://localhost:8080/credential-offer/$OFFER_ID | jq .
+   ```
+   Expect a `credential_offer` object with `credential_configuration_ids: ["UniversityStudent"]` and the `pre-authorized_code` grant.
+
+3. **Wallet redeems the pre-auth code** at `/token`:
+   ```bash
+   PRE_AUTH=$(echo "$OFFER" | jq -r .pre_authorized_code)
+   TOK=$(curl -s -X POST http://localhost:8080/token \
+     -H 'Content-Type: application/x-www-form-urlencoded' \
+     --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:pre-authorized_code' \
+     --data-urlencode "pre-authorized_code=$PRE_AUTH")
+   echo "$TOK" | jq .
+   ```
+   Expect: `access_token`, `c_nonce`, `expires_in`. Both nonces are short-lived.
+
+4. **Wallet POSTs to `/credential` with a proof JWT** signed by its hardware-bound key. This is where you actually need a wallet — `curl` can't generate the `openid4vci-proof+jwt` JWS over `{aud, iat, nonce}` with a `jwk` in the header. Point a walt.id wallet (or your own holder code) at `$deep_link` and watch it complete the flow.
+
+If you want to simulate the wallet from a script, every JOSE library can do it — see `Oid4VciService.validateProof()` in the issuer for the exact structure it expects.
 
 ### What's working vs deferred
 
 | Feature | Status |
 |---|---|
 | SD-JWT-VC issuance + selective disclosure | ✓ Phase 1 |
-| ES256 JWKS endpoint | ✓ Phase 1 |
+| ES256 JWKS endpoint, persisted signing key | ✓ Phase 1 |
 | IETF Token Status List (deflate + bitstring) | ✓ Phase 1 |
 | Browser-side signature + disclosure hash check | ✓ Phase 1 |
-| Full OID4VCI pre-authorized-code handshake | Phase 1.5 |
-| KB-JWT (holder-bound proof of possession) | Phase 2 |
+| Full OID4VCI pre-authorized-code handshake | ✓ Phase 1.5 |
+| BBS+ Rust core (`crypto-core`, sign/derive/verify, 5 tests) | ✓ Phase 2 (Rust) |
+| C-ABI shim + JNA + UniFFI bindings | Phase 2 |
+| KB-JWT (holder-bound proof of possession on SD-JWT-VC) | Phase 2 |
+| BBS verification in the browser (WASM) | Phase 2 |
 | QR scan in verifier (`@zxing/library`) | Phase 2 |
 | Android holder wallet + StrongBox | Phase 2 |
-| BBS+ unlinkable proofs (`crypto-core`) | Phase 3 |
 | Play Integrity enforcement | Phase 3 |
 
 ### Deviations from `final_plan_md.md`
@@ -265,11 +302,13 @@ Expect: a JWKS with one `EC P-256` key, `use: sig`, `alg: ES256`, and the same `
 
 ### crypto-core
 
+BBS+ on BLS12-381 via `docknetwork/bbs_plus`. Sign / derive selective-disclosure proof / verify, plus stubs for the Phase 3 accumulator-revocation path. Same `.so` will be consumed by the issuer JVM (JNA) and the Android holder (UniFFI) once the `extern "C"` shim is added.
+
 ```bash
 cd crypto-core
-cargo check    # Phase 0 — api stubs with todo!() bodies
 cargo test
 ```
+Five tests: full disclosure, selective disclosure, replay rejection (wrong nonce), tamper rejection (modified disclosed message), and unlinkability (two proofs of the same signature differ byte-for-byte).
 
 ### holder-android
 

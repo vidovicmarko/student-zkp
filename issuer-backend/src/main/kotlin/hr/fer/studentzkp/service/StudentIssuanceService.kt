@@ -47,9 +47,9 @@ class StudentIssuanceService(
         val validUntil = today.plusDays(type.defaultValidityDays.toLong())
         val age = Period.between(student.dateOfBirth, today).years
 
-        // Race-y counter: acceptable for a single-tenant demo. Prod swaps this
-        // for a Postgres sequence. See risk register in final_plan §9.
-        val statusIdx = credentialRepo.count().toInt()
+        // Atomic allocation via the credential_status_idx_seq Postgres sequence
+        // (Flyway V4). Concurrent issuances are guaranteed distinct bits.
+        val statusIdx = credentialRepo.nextStatusIdx().toInt()
 
         val alwaysDisclosed: Map<String, Any?> = mapOf(
             "valid_until" to validUntil.toString(),

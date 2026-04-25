@@ -23,6 +23,7 @@ holder-android/build/
 # Secrets
 *.env
 application-local.yml
+.studentzkp/
 
 # OS
 .DS_Store

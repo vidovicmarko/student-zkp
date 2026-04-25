@@ -22,22 +22,23 @@ End-to-end SD-JWT-VC happy path. Full walkthrough in `README.md` → "Testing it
 
 ---
 
-## Phase 1.5 — Close out OID4VCI (est. 3–5 days)
+## Phase 1.5 — Close out OID4VCI (shipped)
 
-What's missing: a real wallet can't fetch a credential from us yet, because we skipped the pre-authorized-code handshake. The dev endpoint is a shortcut, not a protocol.
+A real wallet can now drive the full pre-authorized-code handshake against our issuer. The dev shortcut is still around for `scripts/demo.sh` but only registers under the `dev-shortcut` profile.
 
-### Tasks
+### Done
 
-- [ ] **`/credential-offer` endpoint.** Returns the OpenID4VCI offer JSON (`credential_offer` object with `pre-authorized_code` grant). Spec: [OpenID4VCI draft 14 §4.1.1](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html).
-- [ ] **`/token` endpoint.** Exchanges the pre-authorized code for an access token + `c_nonce`. RFC 6749 + OID4VCI §6.
-- [ ] **`/credential` endpoint.** Accepts `{proof: {proof_type: "jwt", jwt: <kb_jwt_from_wallet>}}`, validates the proof binds the holder's `cnf` JWK to the `c_nonce`, then issues via the existing `SdJwtVcService`. Use the holder's cnf JWK as the `cnf` claim in the credential.
-- [ ] **Replace the dev shortcut.** Keep `DevIssuanceController` under `@Profile("dev-shortcut")`; make the full handshake the default.
-- [ ] **QR / deep-link encoding.** `openid-credential-offer://?credential_offer_uri=…` or inline encoded. Render as a QR in a tiny admin page.
-- [ ] **Swap hand-rolled SD-JWT-VC for walt.id or EUDI libs** *(optional)*. Our hand-rolled impl is audit-friendly but lacks KB-JWT support. Artifacts to try: `id.walt:waltid-identity:1.0.x`, `eu.europa.ec.eudi:eudi-lib-jvm-sdjwt-kt`. Commented TODOs already in `issuer-backend/build.gradle.kts` lines 52–56.
+- [x] **`/credential-offer/{offerId}`.** Returns the OID4VCI offer JSON. `Oid4VciController.kt`, [OpenID4VCI 1.0 §4.1.1](https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html).
+- [x] **`/token`.** Form-encoded RFC 6749 endpoint, accepts the pre-authorized-code grant, returns `access_token` + `c_nonce`.
+- [x] **`/credential`.** Validates the wallet's `openid4vci-proof+jwt` (signature against header `jwk`, `aud` = issuer URI, `nonce` matches `c_nonce`, `iat` within ±5 min), then issues an SD-JWT-VC bound to that `jwk` via `cnf`.
+- [x] **Dev shortcut moved to `@Profile("dev-shortcut")`.** Auto-enabled by the `local` profile group so `scripts/demo.sh` keeps working unchanged. Production deployments leave it off and the `/dev/**` endpoints aren't even registered.
+- [x] **`POST /dev/credential-offer/{studentId}`.** Helper to mint an offer + deep-link without an admin UI. Returns `offer_id`, `pre_authorized_code`, `credential_offer_uri`, and the `openid-credential-offer://` deep-link.
 
-### Done when
+### Remaining (deferred, not blocking)
 
-An OID4VCI-compliant test wallet (e.g. [walt.id wallet](https://walt.id/wallet)) can scan a QR, exchange the code, and receive a valid SD-JWT-VC that our Phase 1 verifier accepts.
+- [ ] **Swap hand-rolled SD-JWT-VC for walt.id or EUDI libs** *(optional)*. Our hand-rolled impl is audit-friendly but lacks KB-JWT support. Artifacts: `id.walt:waltid-identity:1.0.x`, `eu.europa.ec.eudi:eudi-lib-jvm-sdjwt-kt`. Commented TODOs already in `issuer-backend/build.gradle.kts`.
+- [ ] **Render the offer as a scannable QR.** Tiny admin page that renders the deep-link returned by `POST /dev/credential-offer/{studentId}` as a QR using `zxing-js` or a server-side renderer.
+- [ ] **End-to-end test against [walt.id wallet](https://walt.id/wallet)** to confirm protocol-level interop. Manual test, requires a phone.
 
 ---
 
@@ -47,10 +48,10 @@ This is where the *unlinkability* story kicks in. SD-JWT-VC is replayable — th
 
 ### Tasks
 
-- [ ] **Rust `crypto-core` — fill in the `todo!()` bodies.** Files: `crypto-core/src/lib.rs`.
-  - `bbs_keygen`, `bbs_sign`, `bbs_derive_proof`, `bbs_verify_proof` on BLS12-381 via `docknetwork/crypto`.
-  - Build `.so` for `aarch64-linux-android`, `x86_64-linux-android`, host JVM arch. Use `cargo-ndk` or the `rust-android-gradle` plugin.
-- [ ] **JNA binding on the issuer.** Wire `studentzkp-crypto` via `net.java.dev.jna:jna` (already in `build.gradle.kts`). Create `hr.fer.studentzkp.crypto.BbsNative` that loads the `.so` and exposes Kotlin-typed wrappers.
+- [x] **Rust `crypto-core` — BBS+ implementation done.** `crypto-core/src/lib.rs` has working `bbs_keygen`, `bbs_sign`, `bbs_derive_proof`, `bbs_verify_proof` on BLS12-381 via `docknetwork/bbs_plus`. 5 unit tests pass under `cargo test`, covering full disclosure, selective disclosure, replay protection, tamper detection, and unlinkability.
+- [ ] **C-ABI shim around the Rust functions.** `bbs_plus` returns idiomatic Rust types; JNA + UniFFI both need `#[no_mangle] extern "C"` wrappers with raw pointers + lengths and a free function. Last mile before the JVM and Android can call into `crypto-core`.
+- [ ] **Build `.so` for Android targets.** `aarch64-linux-android`, `x86_64-linux-android`, plus host JVM arch via `cargo-ndk` or the `rust-android-gradle` plugin.
+- [ ] **JNA binding on the issuer.** `BbsCryptoBridge.kt` declares the interface; once the C-ABI shim lands, point `Native.load(...)` at the built `.so` and replace the placeholder method shapes with real `extern "C"` signatures.
 - [ ] **Dual-issue.** Next to the SD-JWT-VC, emit a W3C VCDM 2.0 credential with `bbs-2023` cryptosuite. Schema: `valid_until`, `status`, `is_student`, `age_equal_or_over.18`, name hashes (same attributes, different envelope).
 - [ ] **DCQL on the verifier.** Parse the DCQL request from `App.tsx` properly; advertise both `vc+sd-jwt` and `vc+bbs` as accepted formats; let the wallet pick.
 - [ ] **BBS verify in the browser.** WASM build of `docknetwork/crypto` or `@mattrglobal/bbs-signatures`. ~1MB, lazy-loaded behind a dynamic import so the SD-JWT-VC path stays fast.
@@ -89,9 +90,9 @@ Full demo script from `final_plan_md.md §8 Phase 3` passes: rooted device refus
 
 Each of these is small on its own but will bite in a real deployment. Leaving them here so they aren't rediscovered painfully.
 
-- [ ] **`statusIdx` allocation is racy.** `StudentIssuanceService.kt:52` uses `credentialRepo.count()` — two concurrent issuances can collide on the same bit. Swap for a Postgres sequence (`CREATE SEQUENCE credential_status_idx_seq` + `nextval`). OK for single-tenant demo, not OK for prod.
-- [ ] **`SecurityConfig.kt` permits everything.** `.anyRequest().permitAll()` is a dev default. Lock down `/admin`, `/dev/**`, `/integrity/**` with real auth before shipping. See `final_plan_md §5.8` for the admin auth model.
-- [ ] **Issuer signing key is ephemeral.** `IssuerKeyService.kt` regenerates on every boot, which invalidates every previously-issued credential after a restart. For prod: persist as encrypted JWK on disk or move to HashiCorp Vault / AWS KMS.
+- [x] **`statusIdx` allocation is racy.** Replaced with the `credential_status_idx_seq` Postgres sequence (Flyway `V4__status_idx_sequence.sql`); `CredentialRepository.nextStatusIdx()` calls `nextval()`.
+- [x] **`SecurityConfig.kt` permits everything.** Now uses HTTP Basic for `/integrity/**` and `/admin/**`; `/dev/**` is open only when the `dev-shortcut` profile is active and denied otherwise; OID4VCI public endpoints (`/credential-offer/**`, `/token`, `/credential`) stay open. Admin credentials default to a per-boot generated password (logged at startup); set `studentzkp.admin.password` (or `STUDENTZKP_ADMIN_PASSWORD` env) for stable deployments.
+- [x] **Issuer signing key is ephemeral.** `IssuerKeyService` now persists an ES256 JWK to `studentzkp.issuer.keyPath` (default `./.studentzkp/issuer-signing-key.jwk`). Delete the file to rotate. `.studentzkp/` is gitignored. Real KMS/HSM is still future work.
 - [ ] **Status list is rebuilt on every fetch.** `StatusListService.kt` scans all revoked credentials each call. Fine at demo scale (131072-bit capacity, single-digit revocations); cache + invalidate on revocation for prod.
 - [ ] **`cnf_key_jwk` is nullable until Phase 2.** `V3__phase1_adjustments.sql` drops the NOT NULL. Put it back when KB-JWT lands (Phase 2).
 - [ ] **Verifier lacks proper DCQL parsing.** `App.tsx` declares a hardcoded DCQL object but doesn't actually enforce it against the credential. Needs a DCQL matcher against `payload.vct` + disclosure names.
