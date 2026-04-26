@@ -21,7 +21,7 @@ Minimum for the Phase 1 happy path (everything in this README):
 
 - **JDK 21** (Temurin recommended). Verify: `java -version` prints `21`.
 - **Node 20+** (for the verifier-web SPA). Verify: `node -v` prints `v20` or later.
-- **Bash + `curl` + `jq`** (for `scripts/demo.sh`). On Windows, Git Bash ships with `curl`; `jq` via `winget install jqlang.jq` or `choco install jq`.
+- **Bash + `curl` + `jq`** (for `scripts/demo.sh` and the OID4VCI curl recipes). On Windows, Git Bash ships with `curl`; `jq` via `winget install jqlang.jq` or `choco install jq`. Or skip all three and use `scripts/demo.ps1` (PowerShell-native — same output, no extra tooling).
 
 Only needed for later phases (skip for now):
 
@@ -55,7 +55,9 @@ Vite serves the SPA on <http://localhost:5173>.
 
 **Terminal 3 — mint + verify**
 ```bash
-bash scripts/demo.sh
+bash scripts/demo.sh         # bash + curl + jq
+# or, on Windows / no-bash:
+.\scripts\demo.ps1           # PowerShell-native, copies the SD-JWT to your clipboard
 ```
 This POSTs to `/dev/credential/0036123456`, prints the SD-JWT-VC plus each disclosure decoded to `[salt, name, value]`, and reminds you to paste the SD-JWT-VC into the verifier. You'll see `is_student=true` and `age_equal_or_over.18=true`; the name/DOB/student-number hashes stay bound to the credential but never leave your browser.
 
@@ -111,7 +113,7 @@ npm run dev
 
 **6. Mint + verify** — same as the easy path:
 ```bash
-bash scripts/demo.sh
+bash scripts/demo.sh        # or .\scripts\demo.ps1 on Windows
 ```
 Copy the SD-JWT-VC → paste into <http://localhost:5173> → **Verify**.
 

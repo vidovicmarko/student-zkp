@@ -15,7 +15,7 @@ Three classes of endpoints. The class determines what's required.
 |---|---|---|
 | **Public** | None | Wallets (OID4VCI) and verifiers (JWKS, status list) |
 | **Authenticated** | HTTP Basic against `studentzkp.admin.username` + `studentzkp.admin.password` | Issuer-internal callers (Play Integrity gateway, future admin UI) |
-| **Dev-only** | None, but only registered under the `dev-shortcut` Spring profile | `scripts/demo.sh`, manual testing |
+| **Dev-only** | None, but only registered under the `dev-shortcut` Spring profile | `scripts/demo.sh` / `scripts/demo.ps1`, manual testing |
 
 The admin password defaults to a per-boot generated value — look for the line `studentzkp.admin.password not set — generated one for this boot: 'XXXX...'` in the issuer logs. Set `STUDENTZKP_ADMIN_PASSWORD` (env) or `studentzkp.admin.password` (config) for a stable credential.
 
@@ -251,7 +251,7 @@ These routes only exist when the `dev-shortcut` Spring profile is active. The `l
 
 ### `POST /dev/credential/{studentId}`
 
-Issue an SD-JWT-VC for a known student, skipping the OID4VCI handshake. No real wallet should ever call this — it exists for `scripts/demo.sh`.
+Issue an SD-JWT-VC for a known student, skipping the OID4VCI handshake. No real wallet should ever call this — it exists for `scripts/demo.sh` / `scripts/demo.ps1`.
 
 **Path parameters**
 | Name | Type | Required | Notes |

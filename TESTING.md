@@ -7,7 +7,7 @@ Everything you can test today, in one file. The protocol-level flow is shipped t
 - **JDK 21** — `java -version` should print `21`.
 - **Node 20+** — `node -v` should print `v20.x` or later.
 - **Rust 1.75+** — `rustc --version`. Only needed for Flow C.
-- **`curl` + `jq`** — `scripts/demo.sh` uses them. Git Bash ships `curl`; install `jq` via `winget install jqlang.jq` or `choco install jq`.
+- **`curl` + `jq`** — only needed for the bash demo (`scripts/demo.sh`) and the OID4VCI curl recipes. On Windows, run `scripts/demo.ps1` (PowerShell-native) instead and skip both. Git Bash ships `curl`; install `jq` via `winget install jqlang.jq` or `choco install jq`.
 - **Postgres** — skip if you use the `local` Spring profile (embedded). Otherwise see `README.md` → "Running locally — the real Postgres path".
 
 First-time-only setup:
@@ -36,7 +36,7 @@ npm run dev
 Vite serves the SPA on `http://localhost:5173`.
 
 **Terminal 3 — your test commands**
-Free for `scripts/demo.sh`, curl, `cargo test`.
+Free for `scripts/demo.sh` (bash) or `scripts/demo.ps1` (PowerShell, Windows), curl, `cargo test`.
 
 Stop everything with `Ctrl-C` in each terminal. The embedded Postgres shuts down with the issuer; nothing lingers.
 
@@ -57,14 +57,14 @@ scripts/demo.sh  ──POST /dev/credential/0036123456──>  issuer
                                                     └── recompute disclosure hashes  (tamper)
 ```
 
-Run `bash scripts/demo.sh`. Copy the `── SD-JWT-VC (compact) ──` block. Paste into the verifier UI. Click **Verify**.
+Run `bash scripts/demo.sh` (or `.\scripts\demo.ps1` on Windows — same output, copies the SD-JWT to your clipboard). Copy the `── SD-JWT-VC (compact) ──` block. Paste into the verifier UI. Click **Verify**.
 
 ### The 8 test scenarios
 
 Convince yourself the four properties hold: (a) the signature is load-bearing, (b) selective disclosure actually hides what it says it hides, (c) disclosures can't be forged, (d) revocation propagates without an authenticated round-trip.
 
 #### 1. Happy path
-1. `bash scripts/demo.sh` → copy the SD-JWT-VC.
+1. `bash scripts/demo.sh` (or `.\scripts\demo.ps1`) → copy the SD-JWT-VC.
 2. Paste into `http://localhost:5173`, click **Verify**.
 3. **Expect**: green "Credential verified", revealed table contains `is_student: true` and `age_equal_or_over: {"18": true}`, hidden disclosure count is nonzero.
 
@@ -89,7 +89,7 @@ echo "${SDJWT%%~*}" | awk -F. '{print $2}' | tr '_-' '/+' | base64 -d 2>/dev/nul
 4. **Expect**: red banner with `Disclosure rejected: its hash is not present in the issuer-signed _sd array`.
 
 #### 5. Revocation
-1. `bash scripts/demo.sh` → note the `Credential ID`.
+1. `bash scripts/demo.sh` (or `.\scripts\demo.ps1`) → note the `Credential ID`.
 2. Revoke it:
    ```bash
    curl -X POST http://localhost:8080/dev/credential/<credentialId>/revoke
@@ -253,7 +253,8 @@ The Rust core is wired for JNA (JVM) and UniFFI (Android) consumers, but the C-A
 - **OID4VCI `400 Proof JWT aud must be ...`** — your proof's `aud` is wrong. Use `studentzkp.issuer.id` from `application.yml` (default `https://issuer.studentzkp.hr`), not the actual base URL where the issuer is reachable.
 - **OID4VCI `400 Proof JWT iat too far from now`** — clock skew > 5 minutes. Sync your clock.
 - **`Cargo.lock` conflicts in crypto-core** — `cargo clean && cargo build`.
-- **`scripts/demo.sh` says `dev endpoint not registered`** — issuer running without the `local` (or `dev-shortcut`) profile. Restart with `--args='--spring.profiles.active=local'`.
+- **`scripts/demo.sh` (or `.ps1`) gets a 401/403 from `/dev/credential/...`** — issuer running without the `local` (or `dev-shortcut`) profile. Restart with `--args='--spring.profiles.active=local'` (or set Active profiles = `local` in IntelliJ). The boot log should show `activeProfiles=local,dev-shortcut, devShortcutPermit=true`.
+- **`bash scripts/demo.sh` exits silently with `set: pipefail: invalid option`** — the `bash` on your PATH is actually a POSIX `sh` (BusyBox/dash). Use `scripts/demo.ps1` instead, or install Git Bash and run via its full path.
 
 ---
 
