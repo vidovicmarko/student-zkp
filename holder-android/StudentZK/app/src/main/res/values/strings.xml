@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">StudentZK</string>
+    <string name="wallet_title">StudentZK Wallet</string>
+    <string name="scan_title">Scan &amp; Verify</string>
+    <string name="settings_title">Settings</string>
+    <string name="add_credential">Add Credential</string>
+    <string name="student_id_hint">Student ID (e.g. 0036123456)</string>
+    <string name="issue_credential">Issue Credential</string>
+    <string name="camera_permission_required">Camera Permission Required</string>
+    <string name="verified_student">Verified Student</string>
+    <string name="verification_failed">Verification Failed</string>
+    <string name="credential_revoked">Credential REVOKED</string>
+    <string name="server_url">Server URL</string>
+    <string name="check_server">Check Server</string>
+    <string name="save">Save</string>
+</resources>
