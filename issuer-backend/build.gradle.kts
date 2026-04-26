@@ -52,8 +52,10 @@ dependencies {
     // JNA binding to the Rust studentzkp-crypto cdylib (final_plan §5.2).
     implementation("net.java.dev.jna:jna:5.15.0")
 
-    // Play Integrity server-side verification (final_plan §5.8 Layer 2).
-    implementation("com.google.apis:google-api-services-playintegrity:v1-rev20250301-2.0.0")
+    // TODO Phase 3 — Play Integrity server-side verification (final_plan §5.8 Layer 2).
+    // Add the real published artifact when wiring StubIntegrityService → real impl.
+    // implementation("com.google.api-client:google-api-client:<version>")
+    // implementation("com.google.apis:google-api-services-playintegrity:<real-version>")
 
     // OpenAPI / Swagger UI for the issuer's HTTP surface. Auto-generates
     // /v3/api-docs (machine-readable) + /swagger-ui.html (browser). Consumed

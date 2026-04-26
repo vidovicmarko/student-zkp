@@ -8,8 +8,8 @@ spring:
       local: dev-shortcut
   datasource:
     url: jdbc:postgresql://localhost:5432/studentzkp
-    username: ${DB_USERNAME:studentzkp}
-    password: ${DB_PASSWORD:studentzkp}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:mama5337}
   jpa:
     hibernate.ddl-auto: validate
     open-in-view: false

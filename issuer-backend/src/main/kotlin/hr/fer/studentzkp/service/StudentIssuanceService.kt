@@ -4,6 +4,8 @@ import hr.fer.studentzkp.model.Credential
 import hr.fer.studentzkp.repository.CredentialRepository
 import hr.fer.studentzkp.repository.CredentialTypeRepository
 import hr.fer.studentzkp.repository.StudentRepository
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -23,6 +25,13 @@ class StudentIssuanceService(
     private val statusListService: StatusListService,
     @Value("\${studentzkp.issuer.id}") private val issuerUri: String,
 ) {
+    // Used to call entityManager.persist() directly. JpaRepository.save() picks
+    // merge() vs persist() via isNew() — and our Credential has a pre-populated
+    // UUID id and no @Version field, so save() guesses "detached" and tries
+    // UPDATE. persist() unambiguously inserts.
+    @PersistenceContext
+    private lateinit var entityManager: EntityManager
+
     companion object {
         const val STUDENT_TYPE_URI = "https://studentzk.eu/types/student/v1"
     }
@@ -87,17 +96,15 @@ class StudentIssuanceService(
             ),
         )
 
-        val saved = credentialRepo.save(
-            Credential(
-                type = type,
-                subjectDid = subjectDid,
-                attributes = (alwaysDisclosed + selective).filterValues { it != null }
-                    .mapValues { it.value as Any },
-                cnfKeyJwk = holderCnfJwk,
-                statusIdx = statusIdx,
-                validUntil = validUntil.atStartOfDay().atOffset(ZoneOffset.UTC),
-            ),
-        )
+        val saved = Credential(
+            type = type,
+            subjectDid = subjectDid,
+            attributes = (alwaysDisclosed + selective).filterValues { it != null }
+                .mapValues { it.value as Any },
+            cnfKeyJwk = holderCnfJwk,
+            statusIdx = statusIdx,
+            validUntil = validUntil.atStartOfDay().atOffset(ZoneOffset.UTC),
+        ).also(entityManager::persist)
 
         return IssuedCredentialDto(
             credentialId = saved.id.toString(),

@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
-import org.springframework.core.env.Profiles
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
@@ -31,7 +30,12 @@ class SecurityConfig(
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
-        val devShortcut = environment.acceptsProfiles(Profiles.of("dev-shortcut"))
+        val devShortcut = "dev-shortcut" in environment.activeProfiles
+        log.info(
+            "SecurityConfig: activeProfiles={}, devShortcutPermit={}",
+            environment.activeProfiles.joinToString(","),
+            devShortcut,
+        )
 
         http
             .csrf { it.disable() }
