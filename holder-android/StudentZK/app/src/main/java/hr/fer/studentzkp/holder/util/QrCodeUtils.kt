@@ -11,13 +11,14 @@ object QrCodeUtils {
 
     /**
      * Generate a QR code Bitmap for the given content.
-     * Uses ZXing with medium error correction (appropriate for SD-JWT-VC strings).
+     * Uses ErrorCorrectionLevel.L (lowest) and ISO-8859-1 encoding (SD-JWTs are ASCII-safe,
+     * so this avoids the UTF-8 ECI header and results in a less dense QR code).
      */
     fun generate(content: String, sizePx: Int = 768): Bitmap {
         val hints = mapOf(
-            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
-            EncodeHintType.MARGIN to 1,
-            EncodeHintType.CHARACTER_SET to "UTF-8",
+            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L,
+            EncodeHintType.MARGIN to 2,
+            EncodeHintType.CHARACTER_SET to "ISO-8859-1",
         )
         val writer = QRCodeWriter()
         val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
