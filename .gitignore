@@ -14,9 +14,6 @@ target/
 
 # Android
 local.properties
-*.keystore
-*.jks
-keystore.properties
 holder-android/build/
 
 # IDE
@@ -28,10 +25,6 @@ holder-android/build/
 application-local.yml
 .studentzkp/
 
-# IDE / AI tools
-.claude/
-
 # OS
 .DS_Store
 Thumbs.db
-*.log
