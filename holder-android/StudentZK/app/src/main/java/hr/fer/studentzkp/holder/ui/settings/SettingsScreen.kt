@@ -167,6 +167,7 @@ fun SettingsScreen(
                     InfoRow("Version", "1.0.0")
                 }
             }
+            Spacer(Modifier.height(80.dp))
         }
     }
 }

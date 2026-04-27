@@ -87,11 +87,12 @@ class CredentialRepository(private val store: CredentialStore) {
         if (revoked) {
             VerificationResult.Revoked(info.statusIdx)
         } else {
-            VerificationResult.Valid(
+        VerificationResult.Valid(
                 isStudent = info.isStudent,
                 validUntil = info.validUntil,
                 universityId = info.universityId,
                 statusOk = statusOk,
+                ageOver18 = info.ageOver18,
             )
         }
     }

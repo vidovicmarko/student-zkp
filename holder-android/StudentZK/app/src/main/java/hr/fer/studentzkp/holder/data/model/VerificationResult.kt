@@ -10,6 +10,7 @@ sealed class VerificationResult {
         val validUntil: String?,
         val universityId: String?,
         val statusOk: Boolean?,
+        val ageOver18: Boolean? = null,
     ) : VerificationResult()
 
     @Immutable

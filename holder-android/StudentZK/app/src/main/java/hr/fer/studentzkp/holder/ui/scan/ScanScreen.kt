@@ -106,12 +106,13 @@ fun ScanScreen(
                 when {
                     !hasCameraPermission -> NoCameraPermission { permLauncher.launch(Manifest.permission.CAMERA) }
                     else -> {
+                        var showResult by remember(state.result) { mutableStateOf(true) }
                         CameraPreviewWithOverlay(
                             isScanning = state.isScanning,
                             onQrDetected = vm::onQrDetected,
                         )
                         AnimatedVisibility(
-                            visible = state.result != null || state.isVerifying,
+                            visible = (showResult && state.result != null) || state.isVerifying,
                             enter = slideInVertically { it } + fadeIn(),
                             exit = slideOutVertically { it } + fadeOut(),
                             modifier = Modifier.align(Alignment.BottomCenter),
@@ -120,6 +121,7 @@ fun ScanScreen(
                                 isVerifying = state.isVerifying,
                                 result = state.result,
                                 onRescan = { vm.resetScan() },
+                                onDismiss = { showResult = false },
                             )
                         }
                     }
@@ -213,6 +215,7 @@ private fun PasteVerifyPanel(
                 )
             }
         }
+        Spacer(Modifier.height(80.dp))
     }
 }
 
@@ -308,6 +311,7 @@ private fun ResultPanel(
     result: VerificationResult?,
     onRescan: () -> Unit,
     rescanLabel: String = "Scan Another",
+    onDismiss: (() -> Unit)? = null,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -320,6 +324,16 @@ private fun ResultPanel(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (onDismiss != null) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
             if (isVerifying) {
                 CircularProgressIndicator(modifier = Modifier.size(40.dp))
                 Text("Verifying credential…", style = MaterialTheme.typography.bodyLarge)
@@ -379,6 +393,13 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
                     "University: ${result.universityId}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+            }
+            if (result.ageOver18 != null) {
+                Text(
+                    if (result.ageOver18) "Age: 18+ ✓" else "Age: Under 18",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                 )
             }
             if (result.statusOk == null) {

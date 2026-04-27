@@ -64,11 +64,16 @@ object SdJwtUtils {
 
         var isStudent = false
         var universityId: String? = null
+        var ageOver18: Boolean? = null
 
         for (d in claims.disclosures) {
             when (d.name) {
                 "is_student" -> isStudent = d.value as? Boolean ?: false
                 "university_id" -> universityId = d.value.toString()
+                "age_equal_or_over" -> {
+                    val obj = d.value as? org.json.JSONObject
+                    ageOver18 = obj?.optBoolean("18")
+                }
             }
         }
 
@@ -78,6 +83,7 @@ object SdJwtUtils {
             universityId = universityId,
             statusIdx = statusIdx,
             statusListUri = statusListUri,
+            ageOver18 = ageOver18,
         )
     }
 
@@ -119,4 +125,5 @@ data class StudentInfo(
     val universityId: String?,
     val statusIdx: Int,
     val statusListUri: String?,
+    val ageOver18: Boolean? = null,
 )

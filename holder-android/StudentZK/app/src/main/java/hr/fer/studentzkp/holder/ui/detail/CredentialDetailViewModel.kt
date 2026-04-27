@@ -17,7 +17,6 @@ import kotlinx.coroutines.withContext
 data class DetailUiState(
     val credential: StoredCredential? = null,
     val disclosureNames: List<String> = emptyList(),
-    val showQr: Boolean = false,
     val showDeleteDialog: Boolean = false,
 )
 
@@ -52,10 +51,6 @@ class CredentialDetailViewModel(
                 disclosureNames = disclosures,
             )
         }
-    }
-
-    fun toggleQr() {
-        _uiState.value = _uiState.value.copy(showQr = !_uiState.value.showQr)
     }
 
     fun confirmDelete() {

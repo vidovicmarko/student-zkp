@@ -136,6 +136,44 @@ fun CredentialDetailScreen(
                 }
             }
 
+            // ── QR Code ─────────────────────────────────────────────────────────
+            ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                val clipboard = LocalClipboardManager.current
+                var copied by remember { mutableStateOf(false) }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    val qrBitmap: Bitmap = remember(cred.sdJwt) {
+                        QrCodeUtils.generate(cred.sdJwt, 512)
+                    }
+                    Image(
+                        bitmap = qrBitmap.asImageBitmap(),
+                        contentDescription = "QR Code",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(260.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = {
+                        clipboard.setText(AnnotatedString(cred.sdJwt))
+                        copied = true
+                    }) {
+                        Icon(
+                            if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+                            contentDescription = "Copy credential",
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (copied) "Copied!" else "Copy credential")
+                    }
+                }
+            }
+
             // ── Credential info ─────────────────────────────────────────────────
             ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -146,9 +184,6 @@ fun CredentialDetailScreen(
                     }
                     DetailRow(icon = Icons.Default.Fingerprint, label = "Credential ID", value = cred.id.take(16) + "…")
                     DetailRow(icon = Icons.Default.CalendarToday, label = "Issued", value = formatDate(cred.issuedAt))
-                    if (cred.statusIdx >= 0) {
-                        DetailRow(icon = Icons.Default.List, label = "Status Index", value = cred.statusIdx.toString())
-                    }
                 }
             }
 
@@ -156,7 +191,7 @@ fun CredentialDetailScreen(
             if (state.disclosureNames.isNotEmpty()) {
                 ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Selectively Disclosed Attributes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text("Disclosed Attributes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         state.disclosureNames.forEach { name ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
@@ -168,73 +203,6 @@ fun CredentialDetailScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Text(name, style = MaterialTheme.typography.bodyMedium)
                             }
-                        }
-                    }
-                }
-            }
-
-            // ── QR Code section ─────────────────────────────────────────────────
-            ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.QrCode2, contentDescription = null, modifier = Modifier.size(22.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text("Share via QR Code", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        }
-                        Row {
-                            val clipboard = LocalClipboardManager.current
-                            var copied by remember { mutableStateOf(false) }
-                            TextButton(onClick = {
-                                clipboard.setText(AnnotatedString(cred.sdJwt))
-                                copied = true
-                            }) {
-                                Icon(
-                                    if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
-                                    contentDescription = "Copy credential",
-                                    modifier = Modifier.size(16.dp),
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text(if (copied) "Copied!" else "Copy")
-                            }
-                            TextButton(onClick = { vm.toggleQr() }) {
-                                Text(if (state.showQr) "Hide QR" else "Show QR")
-                            }
-                        }
-                    }
-
-                    AnimatedVisibility(
-                        visible = state.showQr,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut(),
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Spacer(Modifier.height(12.dp))
-                            val qrBitmap: Bitmap = remember(cred.sdJwt) {
-                                QrCodeUtils.generate(cred.sdJwt, 768)
-                            }
-                            Image(
-                                bitmap = qrBitmap.asImageBitmap(),
-                                contentDescription = "QR Code",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier
-                                    .size(260.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp)),
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                "Scan with another StudentZK wallet to verify",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            )
                         }
                     }
                 }
@@ -269,7 +237,7 @@ fun CredentialDetailScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(80.dp))
         }
     }
 
