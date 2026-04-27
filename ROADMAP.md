@@ -56,8 +56,8 @@ This is where the *unlinkability* story kicks in. SD-JWT-VC is replayable — th
 - [ ] **DCQL on the verifier.** Parse the DCQL request from `App.tsx` properly; advertise both `vc+sd-jwt` and `vc+bbs` as accepted formats; let the wallet pick.
 - [ ] **BBS verify in the browser.** WASM build of `docknetwork/crypto` or `@mattrglobal/bbs-signatures`. ~1MB, lazy-loaded behind a dynamic import so the SD-JWT-VC path stays fast.
 - [ ] **KB-JWT (Key-Binding JWT) on SD-JWT-VC.** Holder signs `{nonce, aud, sd_hash}` with the StrongBox key; appended as the final `~` segment. Verifier checks `cnf` JWK in the credential matches the kb_jwt signing key. File: extend `verifier-web/src/lib/verify.ts` to validate the trailing segment if present.
-- [ ] **Android holder wallet.** Generate in Android Studio (Compose, `minSdk 31` for StrongBox). Wire UniFFI binding to `crypto-core`. Use `askar` (`@hyperledger/aries-askar`) for encrypted storage. Biometric unlock before proof generation.
-- [ ] **StrongBox ES256 key at wallet provisioning.** `KeyGenParameterSpec.Builder(...).setIsStrongBoxBacked(true)`. Fall back to TEE if StrongBox unavailable; refuse to provision if neither is present.
+- [x] **Android holder wallet.** Compose wallet app built under `holder-android/StudentZK/`. Credential issuance via dev shortcut, QR display/scan, SD-JWT-VC verification with disclosure hash check + status list revocation check, paste-to-verify, copy credential, dismissible scan result card with age/university/student details. Encrypted storage via `EncryptedSharedPreferences` (AES-256). *UniFFI/BBS+ binding, biometric unlock, and `askar` storage are still Phase 2.*
+- [x] **StrongBox ES256 key at wallet provisioning.** `HolderKeyManager.kt`: tries `setIsStrongBoxBacked(true)` first, falls back to TEE automatically. No hard refusal if neither is present (emulator compat).
 - [ ] **Play Integrity — classic request at issuance, standard request at presentation.** Server-side verdict decoding via `google-api-services-playintegrity` (already in the issuer `build.gradle.kts`). Write verdicts to `integrity_assertions` table (schema already exists, `V1__init_schema.sql`).
 
 ### Done when
@@ -77,7 +77,7 @@ Answering the jury's three open questions from the v2 plan's §0 changelog: deep
 - [ ] **Batch issuance.** Issue N single-use SD-JWT-VCs per student (say N=10) so even the SD-JWT-VC path has unlinkability parity with BBS in the short term. Add a `batch_id` + `single_use` flag on `credential`.
 - [ ] **Register a second credential type.** Seed `age/v1` or `library/v1` through the existing `credential_type` registry — prove the platform is credential-type-agnostic. This directly answers "limited scope" from the jury.
 - [ ] **Admin UI.** Spring + Thymeleaf or a small React page under `/admin`. List students, list credential types, issue/revoke, status list editor. Lock down with proper auth (currently `SecurityConfig` is wide open — see "Known issues" below).
-- [ ] **Android UX polish.** Presentation history, clear "what is disclosed" screen, generic card stack (not "Student card" hardcoded).
+- [ ] **Android UX polish.** Presentation history, clear "what is disclosed" screen, generic card stack (not "Student card" hardcoded). *Partially done: credential detail screen shows disclosed attributes, QR sharing, scan result card with student/age/university rows. Still missing: presentation history log, generic multi-type card stack.*
 - [ ] **Stretch: accumulator-based revocation.** Stubs already present in `crypto-core/src/lib.rs`. Hook into BBS proofs so revocation is ZK too.
 
 ### Done when
