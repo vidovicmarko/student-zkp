@@ -103,6 +103,39 @@ object SdJwtUtils {
         return bad
     }
 
+    /**
+     * SD-JWT-VC §4.3 KB-JWT sd_hash:
+     *   b64url( sha256( "<jwt>~<disc1>~...~<discN>~" ) )
+     * I.e. the entire compact form *except* the trailing KB-JWT segment.
+     * Note the trailing "~" must be present in the hashed input.
+     */
+    fun computeSdHash(presentationWithoutKb: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(presentationWithoutKb.toByteArray(Charsets.US_ASCII))
+        return Base64.encodeToString(
+            digest,
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+        )
+    }
+
+    /**
+     * Build the part of a presentation that gets hashed into the KB-JWT.
+     * If `selectedDisclosureNames` is null, all disclosures are included.
+     * Output format: <jwt>~<disc1>~...~<discN>~
+     */
+    fun buildPresentationBody(claims: SdJwtClaims, selectedDisclosureNames: Set<String>? = null): String {
+        val included = if (selectedDisclosureNames == null) {
+            claims.disclosures
+        } else {
+            claims.disclosures.filter { it.name in selectedDisclosureNames }
+        }
+        return buildString {
+            append(claims.jwt)
+            included.forEach { append('~').append(it.rawB64) }
+            append('~')
+        }
+    }
+
     /** Check revocation bit in an inflated bitstring. */
     fun isRevoked(statusIdx: Int, inflatedBits: ByteArray): Boolean {
         if (statusIdx < 0) return false

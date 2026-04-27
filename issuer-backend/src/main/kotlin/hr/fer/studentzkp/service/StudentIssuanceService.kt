@@ -22,8 +22,10 @@ class StudentIssuanceService(
     private val credentialTypeRepo: CredentialTypeRepository,
     private val credentialRepo: CredentialRepository,
     private val sdJwtVc: SdJwtVcService,
+    private val bbsVc: BbsVcService,
     private val statusListService: StatusListService,
     @Value("\${studentzkp.issuer.id}") private val issuerUri: String,
+    @Value("\${studentzkp.issuer.publicBaseUrl}") private val publicBaseUrl: String,
 ) {
     // Used to call entityManager.persist() directly. JpaRepository.save() picks
     // merge() vs persist() via isNew() — and our Credential has a pre-populated
@@ -41,6 +43,11 @@ class StudentIssuanceService(
         val statusIdx: Int,
         val sdJwt: String,
         val disclosures: List<DisclosureDto>,
+        // W3C VCDM 2.0 BBS+ form. Same attribute set, different envelope —
+        // proves the platform is format-agnostic and gives the verifier a path
+        // to BBS-2023 unlinkability (Phase 2 §11). Null only when the BBS+
+        // pipeline is misconfigured (in-memory keypair + cdylib unloadable).
+        val bbsVc: Map<String, Any?>?,
     )
 
     data class DisclosureDto(val name: String, val value: Any?, val disclosureB64: String)
@@ -96,6 +103,24 @@ class StudentIssuanceService(
             ),
         )
 
+        // Dual-issue: same attribute set, BBS+ envelope. Best-effort — if the
+        // crypto-core cdylib isn't on the JNA path, the SD-JWT-VC still mints
+        // and we emit `bbsVc=null` so callers can degrade gracefully.
+        val bbsCredential: Map<String, Any?>? = runCatching {
+            bbsVc.issue(
+                BbsVcService.Request(
+                    issuerUri = issuerUri,
+                    publicBaseUrl = publicBaseUrl,
+                    subjectId = subjectDid,
+                    statusListUri = statusListService.uri,
+                    statusListIndex = statusIdx,
+                    validFrom = today.atStartOfDay().atOffset(ZoneOffset.UTC).toInstant(),
+                    validUntil = validUntil.atStartOfDay().atOffset(ZoneOffset.UTC).toInstant(),
+                    attributes = selective,
+                ),
+            ).credential
+        }.getOrNull()
+
         val saved = Credential(
             type = type,
             subjectDid = subjectDid,
@@ -113,6 +138,7 @@ class StudentIssuanceService(
             disclosures = issued.disclosures.map {
                 DisclosureDto(it.name, it.value, it.disclosureB64)
             },
+            bbsVc = bbsCredential,
         )
     }
 

@@ -187,6 +187,23 @@ fun CredentialDetailScreen(
                 }
             }
 
+            // ── Present to verifier ─────────────────────────────────────────────
+            ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Present to Verifier", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Build a device-bound presentation (SD-JWT + KB-JWT) for a verifier challenge.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                    )
+                    Button(onClick = { vm.openPresentDialog() }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Present")
+                    }
+                }
+            }
+
             // ── Disclosed attributes ────────────────────────────────────────────
             if (state.disclosureNames.isNotEmpty()) {
                 ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
@@ -239,6 +256,84 @@ fun CredentialDetailScreen(
 
             Spacer(Modifier.height(80.dp))
         }
+    }
+
+    // Present-to-verifier dialog
+    if (state.showPresentDialog) {
+        AlertDialog(
+            onDismissRequest = { vm.dismissPresentDialog() },
+            icon = { Icon(Icons.Default.Send, contentDescription = null) },
+            title = { Text("Present to Verifier") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Paste the verifier's challenge (nonce + audience). The wallet signs a Key-Binding JWT with your StrongBox key, proving this credential lives on this phone.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = state.nonceInput,
+                        onValueChange = vm::onNonceChanged,
+                        label = { Text("Nonce") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = state.audienceInput,
+                        onValueChange = vm::onAudienceChanged,
+                        label = { Text("Audience (verifier URL)") },
+                        placeholder = { Text("http://localhost:5173") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    if (state.presentationError != null) {
+                        Text(state.presentationError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (state.presentation != null) {
+                        val clipboard = LocalClipboardManager.current
+                        var copiedPres by remember { mutableStateOf(false) }
+                        HorizontalDivider()
+                        Text("Presentation generated", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        val presBitmap: Bitmap = remember(state.presentation) {
+                            QrCodeUtils.generate(state.presentation!!, 512)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Image(
+                                bitmap = presBitmap.asImageBitmap(),
+                                contentDescription = "Presentation QR",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .size(200.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                            )
+                        }
+                        TextButton(onClick = {
+                            clipboard.setText(AnnotatedString(state.presentation!!))
+                            copiedPres = true
+                        }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                            Icon(if (copiedPres) Icons.Default.Check else Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (copiedPres) "Copied!" else "Copy presentation")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (state.presentation == null) {
+                    Button(onClick = { vm.generatePresentation() }) { Text("Generate") }
+                } else {
+                    Button(onClick = { vm.dismissPresentDialog() }) { Text("Done") }
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { vm.dismissPresentDialog() }) { Text("Close") }
+            },
+        )
     }
 
     // Delete confirmation dialog

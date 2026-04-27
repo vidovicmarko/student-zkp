@@ -18,6 +18,7 @@ securityCrypto = "1.1.0-alpha06"
 lifecycleViewModelCompose = "2.9.0"
 coroutines = "1.10.2"
 icons = "1.7.8"
+jna = "5.15.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -48,6 +49,11 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# JNA bridge to the studentzkp-crypto Rust cdylib (BBS+ in BLS12-381). The
+# @aar variant ships JNA's own helper .so per ABI; our libstudentzkp_crypto.so
+# is dropped in app/src/main/jniLibs/<abi>/ separately by build-crypto.sh.
+jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna", ext = "aar" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

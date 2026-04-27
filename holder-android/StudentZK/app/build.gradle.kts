@@ -19,6 +19,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 64-bit ABIs only — the BBS+ JNA bridge maps `size_t` to Java `long`,
+        // which is correct for arm64-v8a/x86_64 only. See BbsCryptoBridge.kt.
+        ndk {
+            abiFilters += setOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -84,6 +90,9 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+
+    // JNA bridge to the studentzkp-crypto Rust cdylib (BBS+).
+    implementation(libs.jna)
 
     // Testing
     testImplementation(libs.junit)

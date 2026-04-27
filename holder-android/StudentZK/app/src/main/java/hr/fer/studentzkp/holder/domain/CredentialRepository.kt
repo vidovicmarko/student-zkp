@@ -5,6 +5,7 @@ import hr.fer.studentzkp.holder.data.local.CredentialStore
 import hr.fer.studentzkp.holder.data.model.StoredCredential
 import hr.fer.studentzkp.holder.data.model.VerificationResult
 import hr.fer.studentzkp.holder.data.network.IssuerApiClient
+import hr.fer.studentzkp.holder.util.HolderKeyManager
 import hr.fer.studentzkp.holder.util.SdJwtUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,7 +28,11 @@ class CredentialRepository(private val store: CredentialStore) {
      * Suitable for development / demo use.
      */
     suspend fun devIssueAndStore(studentId: String): Result<StoredCredential> {
-        val result = apiClient().devIssueCredential(studentId)
+        // Pin the SD-JWT-VC to this device by sending the StrongBox/TEE pubkey as cnf.
+        // Issuer copies it into the credential's cnf claim; verifiers later require a
+        // KB-JWT signed by the matching private key.
+        val cnfJwk = runCatching { HolderKeyManager.publicKeyJwk() }.getOrNull()
+        val result = apiClient().devIssueCredential(studentId, cnfJwk)
         return result.map { resp ->
             val claims = SdJwtUtils.parse(resp.sdJwt)
             val info = SdJwtUtils.extractStudentInfo(claims)
@@ -43,6 +48,30 @@ class CredentialRepository(private val store: CredentialStore) {
                 statusListUri = info.statusListUri,
             ).also { store.save(it) }
         }
+    }
+
+    // ─── Presentation (KB-JWT) ────────────────────────────────────────────────
+
+    /**
+     * Build a device-bound presentation for [credentialId] against a verifier challenge.
+     * Returns "<sd-jwt>~<disc1>~...~<discN>~<kb-jwt>".
+     *
+     * Rules: every selected disclosure must already be present in the stored credential.
+     * If [selectedDisclosureNames] is null, all disclosures are included.
+     */
+    fun buildPresentation(
+        credentialId: String,
+        nonce: String,
+        audience: String,
+        selectedDisclosureNames: Set<String>? = null,
+    ): Result<String> = runCatching {
+        val cred = store.loadAll().firstOrNull { it.id == credentialId }
+            ?: error("Credential not found: $credentialId")
+        val claims = SdJwtUtils.parse(cred.sdJwt)
+        val body = SdJwtUtils.buildPresentationBody(claims, selectedDisclosureNames)
+        val sdHash = SdJwtUtils.computeSdHash(body)
+        val kbJwt = HolderKeyManager.buildKbJwt(nonce, audience, sdHash)
+        body + kbJwt
     }
 
     // ─── Verification ──────────────────────────────────────────────────────────

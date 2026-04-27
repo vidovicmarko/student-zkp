@@ -119,6 +119,27 @@ See Flow B below.
 
 ---
 
+## Flow A.5 — KB-JWT device-bound presentation (Phase 2)
+
+Proves the credential lives on a specific phone. The wallet pins its StrongBox/TEE public key as the credential's `cnf` claim at issuance, then signs a Key-Binding JWT over the verifier's challenge before each presentation.
+
+Requires the Android holder app (`holder-android/StudentZK`). Open in Android Studio and run on a device or emulator.
+
+1. **Mint a device-bound credential.** In the wallet, tap **Add Credential**, enter `0036123456`, **Issue**. The wallet sends its StrongBox public JWK as `cnfJwk`; the issuer pins it into the SD-JWT-VC.
+2. **Generate a verifier challenge.** Open `http://localhost:5173`. The page now shows a fresh `nonce` and an `audience` (= the verifier's origin). Leave **Require Key-Binding JWT** checked.
+3. **Build the presentation.** In the wallet, open the credential, tap **Present**. Paste the nonce and audience from step 2. Tap **Generate**. The wallet shows a QR + a "Copy presentation" button — its output is `<sd-jwt>~<disclosures>~<kb-jwt>`.
+4. **Verify.** Paste the presentation into the verifier and click **Verify**.
+5. **Expect**: green "Credential verified" *and* a green "Device-bound (KB-JWT verified against StrongBox-pinned cnf key)" badge below it.
+
+Failure scenarios to try:
+- **Replay another nonce.** Click "Regenerate nonce" in the verifier, then paste the *previous* presentation. Expect: `KB-JWT nonce mismatch (replay or wrong challenge)`.
+- **Drop the KB-JWT.** Paste only the SD-JWT body (everything before the last `~`). Expect: `Credential has a cnf claim (device-bound) but presentation is missing a KB-JWT`.
+- **Tamper a disclosure.** Flip a character in one of the `~`-separated disclosures. Expect: `KB-JWT sd_hash does not match the presented disclosures` (the binding catches it before the disclosure-hash check would).
+
+A non-bound dev credential (no `cnf`) from `scripts/demo.sh` paste-verifies as "Credential verified" with a yellow `⚠ No Key-Binding JWT — accepting unbound credential` notice. Toggle **Require Key-Binding JWT** off to suppress the warning.
+
+---
+
 ## Flow B — Real OID4VCI handshake (Phase 1.5)
 
 What an actual wallet drives. Three round-trips, plus a fourth that needs a JOSE library to sign a proof JWT.
@@ -218,7 +239,7 @@ cd crypto-core
 cargo test
 ```
 
-**Expect** five tests, all green:
+**Expect** eight tests, all green:
 
 | Test | What it proves |
 |---|---|
@@ -227,8 +248,25 @@ cargo test
 | `proof_rejected_with_wrong_nonce` | Replay protection — proof bound to nonce-A fails when verified under nonce-B. |
 | `proof_rejected_with_tampered_disclosed_message` | Tamper detection — flipping a disclosed byte invalidates the proof. |
 | `unlinkability_two_proofs_differ` | Two proofs derived from the same signature are byte-different. **This is the BBS+ "wow" property** — vs SD-JWT-VC where the issuer signature is identical across presentations. |
+| `ffi::tests::ffi_full_roundtrip` | Same as `selective_disclosure_roundtrip`, but driven through the C-ABI (`studentzkp_bbs_*` symbols) to prove JNA/UniFFI consumers will see the same results. |
+| `ffi::tests::last_error_is_set_on_invalid_input` | Rust `Err(...)` strings travel across the FFI boundary into a thread-local error retrievable via `studentzkp_last_error`. |
+| `ffi::tests::null_out_param_returns_null_pointer_error` | Passing `NULL` for a required out-parameter returns a clean status code instead of segfaulting. |
 
-The Rust core is wired for JNA (JVM) and UniFFI (Android) consumers, but the C-ABI shim that exposes these functions over FFI isn't written yet. Today the tests are the only consumer.
+### Building the cdylib for the issuer JVM and Android
+
+Once the FFI tests pass, build the shared library and place it where each consumer expects:
+
+```bash
+bash scripts/build-crypto.sh           # host JVM + Android (skips Android if NDK absent)
+bash scripts/build-crypto.sh host      # host JVM only
+bash scripts/build-crypto.sh android   # Android only (needs cargo-ndk + NDK)
+```
+
+PowerShell equivalent: `.\scripts\build-crypto.ps1` with the same `host` / `android` / `all` modes.
+
+Outputs:
+- **Host JVM**: `issuer-backend/build/native/studentzkp_crypto.{dll,so,dylib}`. The issuer's `bootRun` and `test` tasks set `jna.library.path` to that directory automatically.
+- **Android**: `holder-android/StudentZK/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64,x86}/libstudentzkp_crypto.so`. AGP auto-bundles those into the APK. The Android prerequisite is a one-time `cargo install cargo-ndk` plus an NDK install (set `ANDROID_NDK_HOME`; Android Studio's SDK Manager places it under `<sdk>/ndk/<version>`).
 
 ---
 

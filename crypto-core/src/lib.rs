@@ -23,6 +23,10 @@
 
 #![allow(non_snake_case)]
 
+// C-ABI shim consumed by JNA on the issuer JVM and (eventually) the Android
+// holder. Pure-Rust callers can keep using the idiomatic functions directly.
+pub mod ffi;
+
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{collections::BTreeMap, rand::rngs::OsRng, UniformRand};

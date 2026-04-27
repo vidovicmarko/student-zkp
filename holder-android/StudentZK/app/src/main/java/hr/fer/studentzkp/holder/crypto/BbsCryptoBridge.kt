@@ -1,4 +1,4 @@
-package hr.fer.studentzkp.crypto
+package hr.fer.studentzkp.holder.crypto
 
 import com.sun.jna.Library
 import com.sun.jna.Memory
@@ -6,39 +6,29 @@ import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
 
-// JNA binding to the studentzkp-crypto Rust cdylib.
+// Mirror of issuer-backend's BbsCryptoBridge.kt. Same C ABI (six exported
+// `studentzkp_*` symbols, see crypto-core/include/studentzkp_crypto.h), same
+// Kotlin facade — only the package differs.
 //
-// The same .so/.dll/.dylib (built via scripts/build-crypto.sh) is consumed by:
-//   * this JVM (BbsCryptoBridge),
-//   * the Android holder (planned mirror under holder-android/.../crypto).
+// On Android the .so lives at jniLibs/<abi>/libstudentzkp_crypto.so (built
+// by `scripts/build-crypto.sh android`). JNA's loader picks it up via
+// System.mapLibraryName + Native.load.
 //
-// The C ABI is six functions plus two POD structs (see crypto-core/include/
-// studentzkp_crypto.h). All BBS+ ops are panic-safe (`catch_unwind` in ffi.rs)
-// and return an i32 status code; details land in a thread-local last-error.
-//
-// ⚠ 64-bit JVM only: `size_t` is wired here as Java `long` (8 bytes), which
-// matches every modern desktop/server target but would break on a 32-bit JVM.
+// ⚠ 64-bit ABIs only (`size_t = uint64_t`). On 32-bit ABIs (armv7, x86) the
+// `long` mapping for size_t is wrong; cargo-ndk still produces the .so so the
+// app loads, but consumers must keep BbsCrypto away from those code paths.
 
-// ---------------------------------------------------------------------------
-// Status codes (mirror of crypto-core/src/ffi.rs).
-// ---------------------------------------------------------------------------
 private const val STATUS_OK = 0
 private const val STATUS_ERR_NULL_POINTER = 1
 private const val STATUS_ERR_INVALID_INPUT = 2
 private const val STATUS_ERR_CRYPTO = 3
 private const val STATUS_ERR_INTERNAL = 4
 
-// ---------------------------------------------------------------------------
-// JNA Structures
-// ---------------------------------------------------------------------------
-
 @Structure.FieldOrder("ptr", "len", "cap")
 open class ByteBuf : Structure() {
     @JvmField var ptr: Pointer? = null
     @JvmField var len: Long = 0
     @JvmField var cap: Long = 0
-
-    class ByValue : ByteBuf(), Structure.ByValue
 }
 
 @Structure.FieldOrder("ptr", "len")
@@ -48,10 +38,6 @@ open class ByteSlice : Structure() {
 
     class ByValue : ByteSlice(), Structure.ByValue
 }
-
-// ---------------------------------------------------------------------------
-// Raw JNA Library — one method per exported C symbol, no transformations.
-// ---------------------------------------------------------------------------
 
 interface StudentZkpCryptoLib : Library {
 
@@ -99,11 +85,6 @@ interface StudentZkpCryptoLib : Library {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Typed Kotlin facade — what callers should actually use. Hides Memory mgmt,
-// status codes, and the dance of copying bytes back across the FFI boundary.
-// ---------------------------------------------------------------------------
-
 class BbsCryptoException(msg: String, val status: Int) : RuntimeException(msg)
 
 object BbsCrypto {
@@ -118,8 +99,7 @@ object BbsCrypto {
             check(rc, "bbs_keygen")
             return Keypair(readBuf(outPk), readBuf(outSk))
         } finally {
-            free(outPk)
-            free(outSk)
+            free(outPk); free(outSk)
         }
     }
 
@@ -135,8 +115,7 @@ object BbsCrypto {
             check(rc, "bbs_sign")
             return readBuf(out)
         } finally {
-            free(out)
-            pin.close()
+            free(out); pin.close()
         }
     }
 
@@ -163,8 +142,7 @@ object BbsCrypto {
             check(rc, "bbs_derive_proof")
             return readBuf(out)
         } finally {
-            free(out)
-            pin.close()
+            free(out); pin.close()
         }
     }
 
@@ -199,14 +177,9 @@ object BbsCrypto {
             check(rc, "bbs_verify_proof")
             return outValid.getByte(0).toInt() == 1
         } finally {
-            outValid.close()
-            pin.close()
+            outValid.close(); pin.close()
         }
     }
-
-    // ------------------------------------------------------------------
-    // Internals
-    // ------------------------------------------------------------------
 
     private fun check(status: Int, op: String) {
         if (status == STATUS_OK) return
@@ -244,26 +217,13 @@ object BbsCrypto {
         }
     }
 
-    /**
-     * Pins a list of byte arrays into off-heap memory and builds a contiguous
-     * array of ByteSlice structs the C side can iterate. Returned `Pin` must be
-     * `close()`d after the FFI call returns. `nonOwnedSlice(...)` lets callers
-     * stash extra non-array byte inputs (signature, nonce, …) in the same pin
-     * so they all free together — the Memory backing them is the per-array
-     * Memory blocks plus the slices array.
-     */
     private fun pinByteArrays(arrays: List<ByteArray>): Pin {
         val backing = arrays.map { bytes ->
-            if (bytes.isEmpty()) {
-                null
-            } else {
-                Memory(bytes.size.toLong()).also { it.write(0, bytes, 0, bytes.size) }
-            }
+            if (bytes.isEmpty()) null
+            else Memory(bytes.size.toLong()).also { it.write(0, bytes, 0, bytes.size) }
         }
         val slicesArr = ByteSlice().toArray(arrays.size).map { it as ByteSlice }
-        val slicesPtr: Pointer? = if (slicesArr.isEmpty()) {
-            null
-        } else {
+        val slicesPtr: Pointer? = if (slicesArr.isEmpty()) null else {
             for (i in arrays.indices) {
                 slicesArr[i].ptr = backing[i]
                 slicesArr[i].len = arrays[i].size.toLong()
@@ -276,7 +236,6 @@ object BbsCrypto {
 
     private fun pinIndices(indices: List<Int>): Pair<Pointer?, Long> {
         if (indices.isEmpty()) return null to 0L
-        // size_t is 8 bytes on every 64-bit JVM target.
         val mem = Memory(indices.size * 8L)
         for ((i, idx) in indices.withIndex()) {
             require(idx >= 0) { "disclosed index must be non-negative: $idx" }

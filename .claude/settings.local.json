@@ -21,7 +21,16 @@
       "PowerShell(.\\\\scripts\\\\demo.ps1)",
       "PowerShell(try { $h = Invoke-WebRequest -Uri http://localhost:8080/health -UseBasicParsing -ErrorAction Stop; \"/health => $\\($h.StatusCode\\)\" } catch { \"/health => $\\($_.Exception.Response.StatusCode.value__\\)\" }; try { $d = Invoke-WebRequest -Method Post -Uri http://localhost:8080/dev/credential/0036123456 -ContentType 'application/json' -Body '{}' -UseBasicParsing -ErrorAction Stop; \"POST /dev => $\\($d.StatusCode\\)\" } catch { $r = $_.Exception.Response; \"POST /dev => $\\($r.StatusCode.value__\\) WWW-Auth=$\\($r.Headers['WWW-Authenticate']\\)\" })",
       "PowerShell($pair = \"admin:FRfpwZRMNIuH5R3gkyGxnDg_\"; $b64 = [Convert]::ToBase64String\\([Text.Encoding]::UTF8.GetBytes\\($pair\\)\\); try { $d = Invoke-WebRequest -Method Post -Uri http://localhost:8080/dev/credential/0036123456 -ContentType 'application/json' -Body '{}' -Headers @{ Authorization = \"Basic $b64\" } -UseBasicParsing -ErrorAction Stop; \"POST /dev w/admin => $\\($d.StatusCode\\) body-len=$\\($d.Content.Length\\)\" } catch { $r = $_.Exception.Response; \"POST /dev w/admin => $\\($r.StatusCode.value__\\)\" })",
-      "PowerShell($src = Get-Item 'C:\\\\Users\\\\Domagoj\\\\Desktop\\\\FER\\\\LumenDev\\\\repo\\\\student-zkp\\\\issuer-backend\\\\src\\\\main\\\\kotlin\\\\hr\\\\fer\\\\studentzkp\\\\config\\\\SecurityConfig.kt'; $cls = Get-Item 'C:\\\\Users\\\\Domagoj\\\\Desktop\\\\FER\\\\LumenDev\\\\repo\\\\student-zkp\\\\issuer-backend\\\\build\\\\classes\\\\kotlin\\\\main\\\\hr\\\\fer\\\\studentzkp\\\\config\\\\SecurityConfig.class'; \"src .kt LastWrite: $\\($src.LastWriteTime\\)\"; \"out .class LastWrite: $\\($cls.LastWriteTime\\)\"; \"src newer? $\\($src.LastWriteTime -gt $cls.LastWriteTime\\)\")"
+      "PowerShell($src = Get-Item 'C:\\\\Users\\\\Domagoj\\\\Desktop\\\\FER\\\\LumenDev\\\\repo\\\\student-zkp\\\\issuer-backend\\\\src\\\\main\\\\kotlin\\\\hr\\\\fer\\\\studentzkp\\\\config\\\\SecurityConfig.kt'; $cls = Get-Item 'C:\\\\Users\\\\Domagoj\\\\Desktop\\\\FER\\\\LumenDev\\\\repo\\\\student-zkp\\\\issuer-backend\\\\build\\\\classes\\\\kotlin\\\\main\\\\hr\\\\fer\\\\studentzkp\\\\config\\\\SecurityConfig.class'; \"src .kt LastWrite: $\\($src.LastWriteTime\\)\"; \"out .class LastWrite: $\\($cls.LastWriteTime\\)\"; \"src newer? $\\($src.LastWriteTime -gt $cls.LastWriteTime\\)\")",
+      "Bash(claude mcp *)",
+      "Bash(npm run *)",
+      "Bash(bash scripts/build-crypto.sh host)",
+      "Bash(./gradlew compileKotlin)",
+      "Bash(./gradlew test *)",
+      "Bash(command -v wasm-pack)",
+      "Bash(wasm-pack --version)",
+      "Bash(echo \"wasm-pack: $\\(wasm-pack --version\\)\")",
+      "Bash(rustup target *)"
     ]
   }
 }

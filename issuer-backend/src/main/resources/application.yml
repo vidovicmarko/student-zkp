@@ -26,6 +26,9 @@ studentzkp:
     # Persisted ES256 signing key (JWK on disk). Delete the file to rotate.
     # Empty string → ephemeral in-memory key (only OK for unit tests).
     keyPath: ${ISSUER_KEY_PATH:./.studentzkp/issuer-signing-key.jwk}
+    # Persisted BBS+ keypair (BLS12-381) for the W3C VCDM 2.0 dual-issue path.
+    # Empty string → ephemeral keypair (BBS credentials won't verify after restart).
+    bbsKeyPath: ${ISSUER_BBS_KEY_PATH:./.studentzkp/issuer-bbs-key.json}
     # Public-facing base URL for OID4VCI offers / token / credential endpoints.
     # In dev this is localhost; in prod it's the same as `id`.
     publicBaseUrl: ${ISSUER_PUBLIC_BASE_URL:http://localhost:8080}

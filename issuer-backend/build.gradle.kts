@@ -80,4 +80,13 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Same crypto-core cdylib for tests as for bootRun.
+    systemProperty("jna.library.path", file("build/native").absolutePath)
+}
+
+// Point JNA at the studentzkp-crypto cdylib produced by `scripts/build-crypto.sh host`.
+// Path is set unconditionally — if the file is missing JNA only fails when
+// BbsCryptoBridge is first touched, so unrelated bootRun usage stays unaffected.
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    systemProperty("jna.library.path", file("build/native").absolutePath)
 }
