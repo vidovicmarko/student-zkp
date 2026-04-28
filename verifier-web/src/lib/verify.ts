@@ -1,10 +1,12 @@
-// Hand-rolled SD-JWT-VC verification. Mirrors issuer-backend/src/.../SdJwtVcService.kt.
-// Spec: https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/
-// Kept dependency-light on purpose so this file is auditable end-to-end.
+// SD-JWT-VC + BBS-2023 verification. Supports both formats.
+// SD-JWT-VC spec: https://datatracker.ietf.org/doc/draft-ietf-oauth-sd-jwt-vc/
+// BBS spec: https://www.w3.org/TR/vc-data-integrity/ + @mattrglobal/bbs-signatures
 import { createRemoteJWKSet, importJWK, jwtVerify, type JWK } from 'jose'
 import pako from 'pako'
+import { verifyProof } from '@mattrglobal/bbs-signatures'
 
 export interface VerifyResult {
+  format: 'sd-jwt-vc' | 'bbs-2023'
   signatureValid: boolean
   revoked: boolean | null
   issuer: string
@@ -13,10 +15,17 @@ export interface VerifyResult {
   revealed: Record<string, unknown>
   hiddenCount: number
   keyBinding: KeyBindingResult
+  proofHash?: string
+  dcqlValidation?: {
+    valid: boolean
+    errors: DcqlValidationError[]
+  }
   raw: {
-    header: Record<string, unknown>
-    payload: Record<string, unknown>
-    disclosures: Array<{ name: string; value: unknown }>
+    header?: Record<string, unknown>
+    payload?: Record<string, unknown>
+    credential?: Record<string, unknown>
+    proof?: Record<string, unknown>
+    disclosures?: Array<{ name: string; value: unknown }>
   }
 }
 
@@ -24,6 +33,22 @@ export type KeyBindingResult =
   | { state: 'absent' }
   | { state: 'verified'; cnfJwk: JWK; nonce: string; audience: string; iat: number }
   | { state: 'failed'; reason: string }
+
+export interface DcqlCredential {
+  id: string
+  format: string | string[]
+  meta?: { vct_values?: string[] }
+  claims?: Array<{ path: string[] }>
+}
+
+export interface DcqlRequest {
+  credentials: DcqlCredential[]
+}
+
+export interface DcqlValidationError {
+  constraint: string
+  detail: string
+}
 
 export interface VerifyOptions {
   /** Verifier's expected challenge nonce. If set, KB-JWT must echo this value. */
@@ -70,6 +95,116 @@ async function sha256Base64Url(input: string): Promise<string> {
  */
 function looksLikeKbJwt(s: string): boolean {
   return s.split('.').length === 3 && !s.includes('~')
+}
+
+// Flatten a nested object to dot-separated keys (for canonicalization).
+function flattenObject(obj: unknown, prefix = ''): Record<string, string> {
+  const result: Record<string, string> = {}
+  if (obj === null || typeof obj !== 'object') {
+    return result
+  }
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    const key = prefix ? `${prefix}.${k}` : k
+    if (v === null || typeof v !== 'object') {
+      result[key] = JSON.stringify(v)
+    } else {
+      Object.assign(result, flattenObject(v, key))
+    }
+  }
+  return result
+}
+
+export async function verifyBbsCredential(
+  credentialJson: string,
+  issuerBaseUrl: string,
+): Promise<VerifyResult> {
+  const credential = JSON.parse(credentialJson) as Record<string, unknown>
+  const proof = credential.proof as Record<string, unknown>
+  if (!proof) throw new Error('Credential missing proof field')
+  if (proof.cryptosuite !== 'studentzk-bbs-2023') {
+    throw new Error(`Wrong cryptosuite: expected "studentzk-bbs-2023", got "${String(proof.cryptosuite)}"`)
+  }
+
+  // Fetch issuer's public key from .well-known endpoint.
+  const pubKeyUrl = new URL('/.well-known/studentzkp-bbs-key.json', issuerBaseUrl)
+  const pubKeyRes = await fetch(pubKeyUrl.toString(), { credentials: 'omit' })
+  if (!pubKeyRes.ok) {
+    throw new Error(`Failed to fetch issuer BBS public key: ${pubKeyRes.status} ${pubKeyRes.statusText}`)
+  }
+  const pubKeyDoc = (await pubKeyRes.json()) as Record<string, unknown>
+  const pubKeyB64 = pubKeyDoc.publicKey as string
+  if (!pubKeyB64) throw new Error('Public key document missing publicKey field')
+  const publicKeyBytes = base64UrlToBytes(pubKeyB64)
+
+  // Extract proof value (signature).
+  const proofValueB64 = proof.proofValue as string
+  if (!proofValueB64) throw new Error('Proof missing proofValue')
+  const proofBytes = base64UrlToBytes(proofValueB64)
+
+  // Canonicalize revealed attributes (flat-leaf format).
+  const credSubject = credential.credentialSubject as Record<string, unknown> | undefined
+  if (!credSubject) throw new Error('Credential missing credentialSubject')
+  const revealed = flattenObject(credSubject)
+  const messages = Object.entries(revealed)
+    .sort(([k1], [k2]) => k1.localeCompare(k2))
+    .map(([k, v]) => `${k}=${v}`)
+
+  // Verify BBS proof using @mattrglobal library.
+  const proofRes = await verifyProof({
+    proof: proofBytes,
+    publicKey: publicKeyBytes,
+    messages: messages.map((m) => textEncoder.encode(m)),
+    nonce: new Uint8Array(),
+  })
+  if (!proofRes.verified) {
+    throw new Error(`BBS-2023 proof verification failed: ${proofRes.error ?? 'unknown error'}`)
+  }
+
+  // Compute sha256 of proof for unlinkability comparison.
+  const proofHash = await sha256Base64Url(proofValueB64)
+
+  // Check revocation status.
+  let revoked: boolean | null = null
+  const status = (credential as { credentialStatus?: { idx?: number; uri?: string } })
+    .credentialStatus
+  if (status?.idx !== undefined && status?.uri) {
+    try {
+      const listRes = await fetch(status.uri, { credentials: 'omit' })
+      if (listRes.ok) {
+        const listJson = (await listRes.json()) as {
+          status_list: { bits: number; lst: string }
+        }
+        const compressed = base64UrlToBytes(listJson.status_list.lst)
+        const decompressed = pako.inflate(compressed)
+        const byte = decompressed[status.idx >>> 3] ?? 0
+        const bit = (byte >> (status.idx & 7)) & 1
+        revoked = bit === 1
+      }
+    } catch {
+      // Offline: leave revoked = null
+    }
+  }
+
+  const validUntil = (credential as { validUntil?: string }).validUntil ?? null
+  const issuer = String((credential as { issuer?: string }).issuer ?? '')
+  const vct = String((credential as { credentialSubject?: { type?: string } }).credentialSubject?.type ?? '')
+
+  return {
+    format: 'bbs-2023',
+    signatureValid: true,
+    revoked,
+    issuer,
+    vct,
+    validUntil,
+    revealed,
+    hiddenCount: 0,
+    keyBinding: { state: 'absent' },
+    proofHash,
+    raw: {
+      credential,
+      proof,
+    },
+  }
 }
 
 export async function verifySdJwtVc(
@@ -157,7 +292,11 @@ export async function verifySdJwtVc(
 
   const hiddenCount = sdHashes.size - rawDisclosures.length
 
+  // Compute sha256 of proof for unlinkability comparison.
+  const proofHash = await sha256Base64Url(jwt)
+
   return {
+    format: 'sd-jwt-vc',
     signatureValid: true,
     revoked,
     issuer: String(payload.iss ?? ''),
@@ -166,12 +305,103 @@ export async function verifySdJwtVc(
     revealed,
     hiddenCount,
     keyBinding,
+    proofHash,
     raw: {
       header,
       payload: payload as Record<string, unknown>,
       disclosures: rawDisclosures,
     },
   }
+}
+
+export function validateDcql(
+  result: VerifyResult,
+  dcqlRequest: DcqlRequest,
+): { valid: boolean; errors: DcqlValidationError[] } {
+  const errors: DcqlValidationError[] = []
+
+  // Find a matching credential requirement in the DCQL request.
+  // For now, use the first one (single-credential demo).
+  const credReq = dcqlRequest.credentials[0]
+  if (!credReq) {
+    return { valid: false, errors: [{ constraint: 'dcql', detail: 'No credential requirements in DCQL' }] }
+  }
+
+  // Validate format.
+  const acceptedFormats = Array.isArray(credReq.format) ? credReq.format : [credReq.format]
+  const formatMap: Record<string, string> = {
+    'sd-jwt-vc': 'vc+sd-jwt',
+    'bbs-2023': 'vc+bbs',
+  }
+  const resultFormat = formatMap[result.format]
+  if (!acceptedFormats.includes(resultFormat)) {
+    errors.push({
+      constraint: 'format',
+      detail: `Credential format "${resultFormat}" not in accepted formats: ${acceptedFormats.join(', ')}`,
+    })
+  }
+
+  // Validate credential type (vct).
+  if (credReq.meta?.vct_values) {
+    if (!credReq.meta.vct_values.includes(result.vct)) {
+      errors.push({
+        constraint: 'vct',
+        detail: `Credential type "${result.vct}" not in accepted types: ${credReq.meta.vct_values.join(', ')}`,
+      })
+    }
+  }
+
+  // Validate that required claims are present and disclosed.
+  if (credReq.claims) {
+    for (const claim of credReq.claims) {
+      const claimPath = claim.path.join('.')
+      // For nested paths like ['age_equal_or_over'], check for that key
+      // For paths like ['age_equal_or_over', '18'], flatten: age_equal_or_over.18
+      if (!(claimPath in result.revealed)) {
+        errors.push({
+          constraint: 'claim',
+          detail: `Required claim "${claimPath}" is not disclosed in the presentation`,
+        })
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  }
+}
+
+export async function verifyPresentation(
+  input: string,
+  issuerBaseUrl: string,
+  options: VerifyOptions = {},
+  dcqlRequest?: DcqlRequest,
+): Promise<VerifyResult> {
+  const trimmed = input.trim()
+
+  let result: VerifyResult
+  // Detect format: SD-JWT-VC contains ~, BBS is JSON
+  if (trimmed.includes('~')) {
+    result = await verifySdJwtVc(trimmed, issuerBaseUrl, options)
+  } else {
+    try {
+      result = await verifyBbsCredential(trimmed, issuerBaseUrl)
+    } catch (e) {
+      // If BBS parsing fails, might be malformed SD-JWT-VC
+      throw new Error(
+        `Failed to verify as either SD-JWT-VC or BBS-2023. ` +
+          `SD-JWT-VC should contain ~, BBS should be valid JSON. Error: ${e instanceof Error ? e.message : String(e)}`
+      )
+    }
+  }
+
+  // Validate against DCQL if provided.
+  if (dcqlRequest) {
+    result.dcqlValidation = validateDcql(result, dcqlRequest)
+  }
+
+  return result
 }
 
 async function verifyKeyBinding(

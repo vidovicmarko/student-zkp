@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mattrglobal/bbs-signatures": "^2.0.0",
     "jose": "^5.9.6",
     "pako": "^2.1.0",
     "react": "^19.0.0",

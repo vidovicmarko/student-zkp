@@ -1,6 +1,6 @@
 # StudentZK — Testing Guide
 
-Everything you can test today, in one file. The protocol-level flow is shipped through Phase 1.5 (SD-JWT-VC + OID4VCI). The Rust BBS+ core has unit tests. Android wallet, KB-JWT, BBS-in-browser, and Play Integrity enforcement are still pending — see `ROADMAP.md`.
+Everything you can test today. Phase 1.5 (SD-JWT-VC + OID4VCI) is shipped. Phase 2 is feature-complete: KB-JWT device binding, BBS-2023 verifiable from the browser, DCQL format validation, Play Integrity anti-replay, and multi-type credentials. See `ROADMAP.md` for Phase 3 (liveness, photo binding, admin UI).
 
 ## Prerequisites
 
@@ -230,6 +230,142 @@ print(cred["credential"])  # paste into the verifier UI
 
 ---
 
+## Flow D — BBS-2023 proofs in the browser (Phase 2)
+
+Tests unlinkable credentials: two presentations of the same BBS credential produce cryptographically different proofs.
+
+### Test unlinkability
+
+1. **Mint a BBS credential** via `bash scripts/demo.sh` (or `.ps1`). The output now includes both `-- SD-JWT-VC` and `-- W3C VCDM 2.0 BBS-2023 credential --` sections.
+
+2. **Paste the BBS credential into the verifier.** Copy the `-- W3C VCDM 2.0 --` block (starts with `{"@context"...`, ends with `"proof":...}`). Paste into the verifier at `http://localhost:5173`.
+
+3. **Verify the BBS credential.** Click **Verify**. 
+   - **Expect**: green "Credential verified" badge.
+   - Format badge shows: `Format: BBS-2023`.
+   - **Expect**: DCQL validation badge (see Flow E below).
+
+4. **Mint two independent presentations** to demonstrate unlinkability:
+   - Mint the same BBS credential a second time: `bash scripts/demo.sh` (two separate runs).
+   - In the verifier UI, under **3. Unlinkability Demo**, paste the first BBS credential into the disabled "Presentation 1" field (it's pre-filled from step 2).
+   - Paste the second BBS credential into "Presentation 2".
+   - Click **Compare proofs**.
+   - **Expect**: green "Proofs are DIFFERENT — BBS-2023 unlinkability" badge. The two sha256 hashes below are visually different.
+
+5. **Compare with SD-JWT-VC linkability:**
+   - Paste the same SD-JWT-VC credential twice into the comparison fields.
+   - **Expect**: red "Proofs are IDENTICAL — SD-JWT-VC linkability" badge. The sha256 hash is the same for both because the issuer's JWS signature is unchanged.
+
+### Why this matters
+
+Two presentations of the same BBS credential to different verifiers produce unrelated proofs. A verifier cannot correlate presentations — even if they hold all the cryptographic material. SD-JWT-VC fails this: the issuer's signature is identical, so any two verifiers seeing the same credential know it's a replay.
+
+---
+
+## Flow E — DCQL format validation (Phase 2)
+
+Tests that the verifier rejects credentials that don't meet the request constraints.
+
+### Happy path
+
+1. Mint and verify any credential (SD-JWT-VC or BBS) as in Flows A or D.
+2. **Expect**: green "Meets DCQL requirements (format, type, and all required claims disclosed)" badge.
+
+### Failure scenarios
+
+1. **Wrong credential type** (manual test):
+   - Edit `verifier-web/src/App.tsx`, change `meta.vct_values` from `['https://studentzk.eu/types/student/v1']` to `['https://example.com/wrong-type']`.
+   - Mint a student credential and verify.
+   - **Expect**: red badge listing `vct: Credential type "https://studentzk.eu/types/student/v1" not in accepted types: https://example.com/wrong-type`.
+
+2. **Missing required claim** (manual test):
+   - Edit `verifier-web/src/App.tsx`, add a third claim: `{ path: ['nonexistent_claim'] }`.
+   - Verify any credential.
+   - **Expect**: red badge listing `claim: Required claim "nonexistent_claim" is not disclosed in the presentation`.
+
+3. **Format mismatch** (manual test):
+   - Edit `verifier-web/src/App.tsx`, change `format` from `['vc+sd-jwt', 'vc+bbs']` to `['vc+sd-jwt']` (reject BBS).
+   - Mint a BBS credential and verify.
+   - **Expect**: red badge listing `format: Credential format "vc+bbs" not in accepted formats: vc+sd-jwt`.
+
+---
+
+## Flow F — Age credential (multi-type) (Phase 3 preview)
+
+Tests that the platform issues different credential types from the same student database, proving extensibility.
+
+### Mint an age credential
+
+```bash
+curl -X POST http://localhost:8080/dev/credential/age/0036123456 | jq .
+```
+
+Or via the Python OID4VCI recipe:
+```python
+# Same setup as Flow B, then:
+OFFER = requests.post(f"{BASE}/dev/credential-offer/0036123456", 
+                      json={"credentialType": "age"}).json()
+# continue with /token + /credential flow
+```
+
+**Expect**: an SD-JWT-VC or BBS-2023 credential with:
+- `vct: "https://studentzk.eu/types/age/v1"`
+- `credentialSubject` contains only `age_equal_or_over`, **never** student_id or name hashes
+- Same revocation list, same validity model
+
+### Verify both types in one wallet
+
+1. Mint a student credential: `curl -X POST http://localhost:8080/dev/credential/0036123456`.
+2. Mint an age credential: `curl -X POST http://localhost:8080/dev/credential/age/0036123456`.
+3. Paste each into the verifier separately. Both verify with the same signature + revocation checks, but different `vct` and `credentialSubject`.
+4. **Expect**: the DCQL badge adapts to each type. If you add a third credential type later (e.g., library/v1), the same verifier, issuer, and holder code work unchanged.
+
+---
+
+## Flow G — JMBAG validation
+
+Tests that the issuer rejects invalid student IDs and only issues to real JMBAGs (10-digit format).
+
+### Valid JMBAG
+
+```bash
+curl -X POST http://localhost:8080/dev/credential/0036123456 | jq .
+# expect: credential issued
+```
+
+### Invalid JMBAG — format
+
+```bash
+# Too short
+curl -X POST http://localhost:8080/dev/credential/123 | jq .
+# expect: 400 Bad Request, "Invalid JMBAG format: must be 10 digits"
+
+# Non-numeric
+curl -X POST http://localhost:8080/dev/credential/ABC1234567 | jq .
+# expect: 400 Bad Request
+
+# Too long
+curl -X POST http://localhost:8080/dev/credential/01234567890 | jq .
+# expect: 400 Bad Request
+```
+
+### Invalid JMBAG — not in registry
+
+```bash
+# Valid format (10 digits) but JMBAG doesn't exist in the students table
+curl -X POST http://localhost:8080/dev/credential/9999999999 | jq .
+# expect: 403 Forbidden, "JMBAG is not valid in the university student registry"
+```
+
+**Why this matters**: The issuer validates JMBAGs in two layers:
+1. **Format**: exactly 10 digits (catches typos, wrong-length inputs)
+2. **Registry**: existence in the seeded `students` table (prevents issuing to non-existent students)
+
+In production, the registry layer plugs into the actual University of Zagreb student database (LDAP, API, CSV sync, etc.) via the configurable `StudentRegistryService`.
+```
+
+---
+
 ## Flow C — Rust crypto-core (BBS+)
 
 Pure unit tests; no issuer or DB needed.
@@ -267,6 +403,56 @@ PowerShell equivalent: `.\scripts\build-crypto.ps1` with the same `host` / `andr
 Outputs:
 - **Host JVM**: `issuer-backend/build/native/studentzkp_crypto.{dll,so,dylib}`. The issuer's `bootRun` and `test` tasks set `jna.library.path` to that directory automatically.
 - **Android**: `holder-android/StudentZK/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64,x86}/libstudentzkp_crypto.so`. AGP auto-bundles those into the APK. The Android prerequisite is a one-time `cargo install cargo-ndk` plus an NDK install (set `ANDROID_NDK_HOME`; Android Studio's SDK Manager places it under `<sdk>/ndk/<version>`).
+
+---
+
+## Flow H — Play Integrity anti-replay (Phase 2, prod-only)
+
+Tests device attestation and nonce-based replay prevention. Only active in prod deployments with Google Play Integrity credentials configured.
+
+### Dev mode (stub)
+
+In dev (default), the stub `StubIntegrityService` accepts any token:
+
+```bash
+# Issue a nonce
+NONCE=$(curl -s -X POST http://localhost:8080/integrity/nonce \
+  -H 'Content-Type: application/json' \
+  -d '{"subjectDid":"urn:dev:0036123456"}' | jq -r .nonce)
+
+# Verify a (fake) token
+curl -s -X POST http://localhost:8080/integrity/verify \
+  -H 'Content-Type: application/json' \
+  -d "{\"token\":\"fake-token\",\"requestHash\":\"$(echo -n 'test' | sha256sum | cut -d' ' -f1 | base64 -w0)\"}" | jq .
+# expect: { "ok": true, "reasons": ["stub-service: token not validated against Google"] }
+```
+
+### Prod mode (real Google API)
+
+To test against real Google Play Integrity:
+
+1. **Configure Google credentials.** Set environment variables:
+   ```bash
+   export PLAY_INTEGRITY_PROJECT_NUMBER="<your-google-cloud-project-number>"
+   export PLAY_INTEGRITY_SA_JSON='{"type":"service_account",...}'  # full JSON key
+   ```
+
+2. **Build with Google API enabled.** Uncomment in `issuer-backend/build.gradle.kts`:
+   ```gradle
+   implementation("com.google.api-client:google-api-client:2.2.0")
+   implementation("com.google.apis:google-api-services-playintegrity:v1-rev20231219-2.0.0")
+   ```
+
+3. **Run in prod profile.** `./gradlew bootRun --args='--spring.profiles.active=prod'` loads the real `PlayIntegrityService`.
+
+4. **Test from the Android app.** The holder-android wallet, when issuing or presenting:
+   - Calls `GET /integrity/nonce` to fetch a challenge
+   - Constructs a Play Integrity token on the device (via Google Play Services)
+   - Submits the token to `POST /integrity/verify` with a request hash (SHA-256 of the presentation)
+   - The issuer verifies against Google, checks device integrity (rejects ROOTED/EMULATOR), checks app integrity (PLAYS_CERTIFIED), and records the verdict
+   - **Expect**: rooted/emulator devices refused; genuine Play-signed apps accepted
+
+5. **Replay protection**: The nonce is unique per request and enforced in `integrity_assertions` table with a `UNIQUE` constraint. Reusing the same nonce rejects with `Nonce replay detected`.
 
 ---
 

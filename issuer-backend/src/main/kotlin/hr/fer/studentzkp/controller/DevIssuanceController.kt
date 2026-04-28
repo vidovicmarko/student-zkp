@@ -1,5 +1,6 @@
 package hr.fer.studentzkp.controller
 
+import hr.fer.studentzkp.service.AgeIssuanceService
 import hr.fer.studentzkp.service.StudentIssuanceService
 import org.springframework.context.annotation.Profile
 import org.springframework.web.bind.annotation.PathVariable
@@ -14,7 +15,8 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @Profile("dev-shortcut")
 class DevIssuanceController(
-    private val issuanceService: StudentIssuanceService,
+    private val studentIssuanceService: StudentIssuanceService,
+    private val ageIssuanceService: AgeIssuanceService,
 ) {
 
     @PostMapping("/dev/credential/{studentId}")
@@ -22,7 +24,14 @@ class DevIssuanceController(
         @PathVariable studentId: String,
         @RequestBody(required = false) body: IssueRequest?,
     ): StudentIssuanceService.IssuedCredentialDto =
-        issuanceService.issueForStudent(studentId, body?.cnfJwk)
+        studentIssuanceService.issueForStudent(studentId, body?.cnfJwk)
+
+    @PostMapping("/dev/credential/age/{studentId}")
+    fun issueAgeCredential(
+        @PathVariable studentId: String,
+        @RequestBody(required = false) body: IssueRequest?,
+    ): AgeIssuanceService.IssuedCredentialDto =
+        ageIssuanceService.issueForStudent(studentId, body?.cnfJwk)
 
     data class IssueRequest(val cnfJwk: Map<String, Any>?)
 }
