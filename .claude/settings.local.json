@@ -30,7 +30,17 @@
       "Bash(command -v wasm-pack)",
       "Bash(wasm-pack --version)",
       "Bash(echo \"wasm-pack: $\\(wasm-pack --version\\)\")",
-      "Bash(rustup target *)"
+      "Bash(rustup target *)",
+      "Bash(npm install *)",
+      "Bash(npm view *)",
+      "Bash(npm rebuild *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(./gradlew build *)",
+      "Bash(curl -s \"https://maven.pkg.github.com\")",
+      "Bash(./gradlew -p issuer-backend bootRun --args='--spring.profiles.active=local')",
+      "Bash(cd C:\\\\\\\\Users\\\\\\\\Domagoj\\\\\\\\Desktop\\\\\\\\FER\\\\\\\\LumenDev\\\\\\\\repo\\\\\\\\student-zkp)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
