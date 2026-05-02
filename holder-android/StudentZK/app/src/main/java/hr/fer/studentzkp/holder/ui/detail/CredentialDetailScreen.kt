@@ -146,8 +146,8 @@ fun CredentialDetailScreen(
                         .padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    val qrBitmap: Bitmap = remember(cred.sdJwt) {
-                        QrCodeUtils.generate(cred.sdJwt, 512)
+                    val qrBitmap: Bitmap = remember(cred.bbsVcJson) {
+                        QrCodeUtils.generate(cred.bbsVcJson, 512)
                     }
                     Image(
                         bitmap = qrBitmap.asImageBitmap(),
@@ -160,7 +160,7 @@ fun CredentialDetailScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     TextButton(onClick = {
-                        clipboard.setText(AnnotatedString(cred.sdJwt))
+                        clipboard.setText(AnnotatedString(cred.bbsVcJson))
                         copied = true
                     }) {
                         Icon(
@@ -192,7 +192,7 @@ fun CredentialDetailScreen(
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Present to Verifier", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Build a device-bound presentation (SD-JWT + KB-JWT) for a verifier challenge.",
+                        "Share this BBS+ credential with a verifier. The credential proves your attributes without revealing hidden ones.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                     )
@@ -204,12 +204,12 @@ fun CredentialDetailScreen(
                 }
             }
 
-            // ── Disclosed attributes ────────────────────────────────────────────
-            if (state.disclosureNames.isNotEmpty()) {
+            // ── Signed attributes ────────────────────────────────────────────
+            if (state.attributeNames.isNotEmpty()) {
                 ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Disclosed Attributes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        state.disclosureNames.forEach { name ->
+                        Text("Signed Attributes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        state.attributeNames.forEach { name ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     Icons.Default.Lock,
@@ -225,7 +225,7 @@ fun CredentialDetailScreen(
                 }
             }
 
-            // ── Raw SD-JWT section ──────────────────────────────────────────────
+            // ── Raw BBS+ Credential section ──────────────────────────────────────────────
             var showRaw by remember { mutableStateOf(false) }
             ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -234,7 +234,7 @@ fun CredentialDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Raw SD-JWT-VC", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text("Raw BBS+ Credential", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         TextButton(onClick = { showRaw = !showRaw }) {
                             Text(if (showRaw) "Hide" else "Show")
                         }
@@ -242,7 +242,7 @@ fun CredentialDetailScreen(
                     AnimatedVisibility(visible = showRaw, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                         SelectionContainer {
                             Text(
-                                cred.sdJwt,
+                                cred.bbsVcJson,
                                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -267,7 +267,7 @@ fun CredentialDetailScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        "Paste the verifier's challenge (nonce + audience). The wallet signs a Key-Binding JWT with your StrongBox key, proving this credential lives on this phone.",
+                        "Enter a verifier nonce and audience to generate a BBS+ presentation. The credential's signature is cryptographically verified without revealing hidden attributes.",
                         style = MaterialTheme.typography.bodySmall,
                     )
                     OutlinedTextField(

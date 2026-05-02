@@ -150,7 +150,7 @@ private fun PasteVerifyPanel(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Paste a credential SD-JWT to verify it manually.",
+            "Paste a BBS+ credential JSON to verify it manually.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
         )
@@ -161,8 +161,8 @@ private fun PasteVerifyPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 120.dp),
-            label = { Text("SD-JWT credential") },
-            placeholder = { Text("eyJ…~…~") },
+            label = { Text("BBS+ credential") },
+            placeholder = { Text("{\"@context\":…}") },
             trailingIcon = {
                 if (input.isNotEmpty()) {
                     IconButton(onClick = { input = ""; onReset() }) {

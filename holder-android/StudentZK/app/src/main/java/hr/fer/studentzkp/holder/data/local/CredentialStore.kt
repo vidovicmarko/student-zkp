@@ -61,7 +61,7 @@ class CredentialStore(context: Context) {
 
     private fun toJson(c: StoredCredential): JSONObject = JSONObject().apply {
         put("id", c.id)
-        put("sdJwt", c.sdJwt)
+        put("bbsVcJson", c.bbsVcJson)
         put("studentId", c.studentId)
         put("issuedAt", c.issuedAt)
         put("validUntil", c.validUntil ?: "")
@@ -74,11 +74,11 @@ class CredentialStore(context: Context) {
 
     private fun fromJson(o: JSONObject): StoredCredential = StoredCredential(
         id = o.getString("id"),
-        sdJwt = o.getString("sdJwt"),
+        bbsVcJson = o.getString("bbsVcJson"),
         studentId = o.getString("studentId"),
         issuedAt = o.getLong("issuedAt"),
         validUntil = o.optString("validUntil").takeIf { it.isNotEmpty() },
-        credentialType = o.optString("credentialType", "UniversityStudent"),
+        credentialType = o.optString("credentialType", "StudentCredential"),
         universityId = o.optString("universityId").takeIf { it.isNotEmpty() },
         isStudent = o.optBoolean("isStudent", true),
         statusIdx = o.optInt("statusIdx", -1),
