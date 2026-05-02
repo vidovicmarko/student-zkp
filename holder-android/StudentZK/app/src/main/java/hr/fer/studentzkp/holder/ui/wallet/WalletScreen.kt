@@ -74,6 +74,11 @@ fun WalletScreen(
                         Text("StudentZK Wallet", style = MaterialTheme.typography.titleLarge)
                     }
                 },
+                actions = {
+                    IconButton(onClick = { vm.showAddSheet() }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add credential")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),

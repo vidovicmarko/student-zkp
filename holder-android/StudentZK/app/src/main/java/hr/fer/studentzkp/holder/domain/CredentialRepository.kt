@@ -35,7 +35,7 @@ class CredentialRepository(private val store: CredentialStore) {
             val data = BbsVcUtils.parse(resp.bbsVcJson)
             val info = BbsVcUtils.extractStudentInfo(data)
             StoredCredential(
-                id = resp.credentialId,
+                id = java.util.UUID.randomUUID().toString(),
                 bbsVcJson = resp.bbsVcJson,
                 studentId = studentId,
                 issuedAt = System.currentTimeMillis(),
