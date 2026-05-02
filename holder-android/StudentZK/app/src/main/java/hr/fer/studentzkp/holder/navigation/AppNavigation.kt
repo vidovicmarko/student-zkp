@@ -1,5 +1,10 @@
 package hr.fer.studentzkp.holder.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -27,12 +32,41 @@ import hr.fer.studentzkp.holder.ui.settings.SettingsScreen
 import hr.fer.studentzkp.holder.ui.verify.VerifyResultScreen
 import hr.fer.studentzkp.holder.ui.wallet.WalletScreen
 
+private const val NAV_ANIM_DURATION = 300
+
 @Composable
 fun AppNavHost(navController: NavHostController) {
     val context = LocalContext.current
     val repo = remember(context) { CredentialRepository(CredentialStore(context)) }
 
-    NavHost(navController = navController, startDestination = Screen.Wallet.route) {
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Wallet.route,
+        enterTransition = {
+            slideInHorizontally(
+                initialOffsetX = { it / 4 },
+                animationSpec = tween(NAV_ANIM_DURATION),
+            ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+        },
+        exitTransition = {
+            slideOutHorizontally(
+                targetOffsetX = { -it / 4 },
+                animationSpec = tween(NAV_ANIM_DURATION),
+            ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+        },
+        popEnterTransition = {
+            slideInHorizontally(
+                initialOffsetX = { -it / 4 },
+                animationSpec = tween(NAV_ANIM_DURATION),
+            ) + fadeIn(animationSpec = tween(NAV_ANIM_DURATION))
+        },
+        popExitTransition = {
+            slideOutHorizontally(
+                targetOffsetX = { it / 4 },
+                animationSpec = tween(NAV_ANIM_DURATION),
+            ) + fadeOut(animationSpec = tween(NAV_ANIM_DURATION))
+        },
+    ) {
         composable(Screen.Wallet.route) {
             WalletScreen(
                 repository = repo,

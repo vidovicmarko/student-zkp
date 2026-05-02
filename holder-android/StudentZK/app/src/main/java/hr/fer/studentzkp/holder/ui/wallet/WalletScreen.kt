@@ -31,8 +31,7 @@ import hr.fer.studentzkp.holder.data.model.StoredCredential
 import hr.fer.studentzkp.holder.domain.CredentialRepository
 import hr.fer.studentzkp.holder.ui.theme.CardGradientEnd
 import hr.fer.studentzkp.holder.ui.theme.CardGradientStart
-import java.text.SimpleDateFormat
-import java.util.*
+import hr.fer.studentzkp.holder.util.DateUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -201,7 +200,7 @@ private fun CredentialCard(
                     ValidBadge(isValid = credential.isStudent)
                     if (credential.validUntil != null) {
                         Text(
-                            text = "Valid until ${credential.validUntil}",
+                            text = "Valid until ${DateUtils.formatIso(credential.validUntil) ?: credential.validUntil}",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.75f),
                         )
@@ -209,7 +208,7 @@ private fun CredentialCard(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Issued ${formatDate(credential.issuedAt)}",
+                    text = "Issued ${DateUtils.formatEpoch(credential.issuedAt)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.6f),
                 )
@@ -381,5 +380,3 @@ private fun HintCard() {
     }
 }
 
-private fun formatDate(epochMillis: Long): String =
-    SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMillis))

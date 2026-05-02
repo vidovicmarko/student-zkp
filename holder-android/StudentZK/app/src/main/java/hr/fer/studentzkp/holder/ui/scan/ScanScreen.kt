@@ -39,6 +39,7 @@ import hr.fer.studentzkp.holder.data.model.VerificationResult
 import hr.fer.studentzkp.holder.domain.CredentialRepository
 import hr.fer.studentzkp.holder.ui.theme.ValidGreen
 import hr.fer.studentzkp.holder.ui.theme.RevokedRed
+import hr.fer.studentzkp.holder.util.DateUtils
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -428,7 +429,7 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
                     DetailRow(
                         icon = Icons.Default.CalendarToday,
                         label = "Valid until",
-                        value = result.validUntil,
+                        value = DateUtils.formatIso(result.validUntil) ?: result.validUntil,
                     )
                 }
                 if (result.ageOver18 != null) {
