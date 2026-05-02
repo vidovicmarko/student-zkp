@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import hr.fer.studentzkp.holder.domain.CredentialRepository
 import hr.fer.studentzkp.holder.ui.theme.CardGradientEnd
 import hr.fer.studentzkp.holder.ui.theme.CardGradientStart
+import hr.fer.studentzkp.holder.util.DateUtils
 import hr.fer.studentzkp.holder.util.QrCodeUtils
 import java.text.SimpleDateFormat
 import java.util.*
@@ -129,7 +130,7 @@ fun CredentialDetailScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Valid until ${cred.validUntil ?: "—"}",
+                        "Valid until ${DateUtils.formatIso(cred.validUntil) ?: "—"}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.75f),
                     )
