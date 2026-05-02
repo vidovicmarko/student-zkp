@@ -106,22 +106,33 @@ fun ScanScreen(
                 when {
                     !hasCameraPermission -> NoCameraPermission { permLauncher.launch(Manifest.permission.CAMERA) }
                     else -> {
-                        var showResult by remember(state.result) { mutableStateOf(true) }
+                        val isShowingResult = state.result != null || state.isVerifying
                         CameraPreviewWithOverlay(
                             isScanning = state.isScanning,
                             onQrDetected = vm::onQrDetected,
                         )
+                        
+                        // Dim background when result is shown
                         AnimatedVisibility(
-                            visible = (showResult && state.result != null) || state.isVerifying,
-                            enter = slideInVertically { it } + fadeIn(),
-                            exit = slideOutVertically { it } + fadeOut(),
-                            modifier = Modifier.align(Alignment.BottomCenter),
+                            visible = isShowingResult,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
+                        }
+
+                        AnimatedVisibility(
+                            visible = isShowingResult,
+                            enter = scaleIn(initialScale = 0.9f) + fadeIn(),
+                            exit = scaleOut(targetScale = 0.9f) + fadeOut(),
+                            modifier = Modifier.align(Alignment.Center).padding(24.dp),
                         ) {
                             ResultPanel(
                                 isVerifying = state.isVerifying,
                                 result = state.result,
                                 onRescan = { vm.resetScan() },
-                                onDismiss = { showResult = false },
+                                onDismiss = { vm.resetScan() },
                             )
                         }
                     }
@@ -315,8 +326,8 @@ private fun ResultPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        shadowElevation = 8.dp,
+        shape = RoundedCornerShape(24.dp),
+        shadowElevation = 12.dp,
         color = MaterialTheme.colorScheme.surface,
     ) {
         Column(
@@ -360,51 +371,100 @@ private fun ResultPanel(
 
 @Composable
 private fun ValidResultContent(result: VerificationResult.Valid) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(ValidGreen.copy(alpha = 0.12f))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            Icons.Default.CheckCircle,
-            contentDescription = null,
-            modifier = Modifier.size(40.dp),
-            tint = ValidGreen,
+        // Large check icon
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = ValidGreen.copy(alpha = 0.15f),
+            modifier = Modifier.size(80.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = ValidGreen,
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Student Verified",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            color = ValidGreen,
         )
-        Spacer(Modifier.width(14.dp))
-        Column {
-            Text(
-                "✓ Verified Student",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = ValidGreen,
-            )
-            if (result.validUntil != null) {
-                Text(
-                    "Valid until ${result.validUntil}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "This credential is valid and authentic",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+        Spacer(Modifier.height(20.dp))
+
+        // Detail rows
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                if (!result.universityId.isNullOrBlank()) {
+                    DetailRow(
+                        icon = Icons.Default.School,
+                        label = "University",
+                        value = result.universityId,
+                    )
+                }
+                if (result.validUntil != null) {
+                    if (!result.universityId.isNullOrBlank()) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                        )
+                    }
+                    DetailRow(
+                        icon = Icons.Default.CalendarToday,
+                        label = "Valid until",
+                        value = result.validUntil,
+                    )
+                }
+                if (result.ageOver18 != null) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                    )
+                    DetailRow(
+                        icon = Icons.Default.Person,
+                        label = "Age",
+                        value = if (result.ageOver18) "18+ ✓" else "Under 18",
+                        valueColor = if (result.ageOver18) ValidGreen else RevokedRed,
+                    )
+                }
             }
-            if (!result.universityId.isNullOrBlank()) {
-                Text(
-                    "University: ${result.universityId}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+        }
+
+        if (result.statusOk == null) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.secondary,
                 )
-            }
-            if (result.ageOver18 != null) {
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    if (result.ageOver18) "Age: 18+ ✓" else "Age: Under 18",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                )
-            }
-            if (result.statusOk == null) {
-                Text(
-                    "⚠ Status list unreachable — last-known state shown",
+                    "Status list unreachable — last-known state shown",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
@@ -414,31 +474,72 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
 }
 
 @Composable
-private fun InvalidResultContent(reason: String) {
+private fun DetailRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(RevokedRed.copy(alpha = 0.1f))
-            .padding(16.dp),
-        verticalAlignment = Alignment.Top,
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Icons.Default.Cancel,
+            icon,
             contentDescription = null,
-            modifier = Modifier.size(40.dp),
-            tint = RevokedRed,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
-        Spacer(Modifier.width(14.dp))
-        Column {
-            Text(
-                "Verification Failed",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = RevokedRed,
-            )
-            Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = valueColor,
+        )
+    }
+}
+
+@Composable
+private fun InvalidResultContent(reason: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = RevokedRed.copy(alpha = 0.12f),
+            modifier = Modifier.size(80.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.Cancel,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = RevokedRed,
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Verification Failed",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            color = RevokedRed,
+        )
+        Spacer(Modifier.height(12.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = RevokedRed.copy(alpha = 0.08f),
+        ) {
             Text(
                 reason,
+                modifier = Modifier.padding(14.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
@@ -448,32 +549,59 @@ private fun InvalidResultContent(reason: String) {
 
 @Composable
 private fun RevokedResultContent(statusIdx: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(RevokedRed.copy(alpha = 0.1f))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            Icons.Default.GppBad,
-            contentDescription = null,
-            modifier = Modifier.size(40.dp),
-            tint = RevokedRed,
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = RevokedRed.copy(alpha = 0.12f),
+            modifier = Modifier.size(80.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.GppBad,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = RevokedRed,
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Credential Revoked",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            color = RevokedRed,
         )
-        Spacer(Modifier.width(14.dp))
-        Column {
-            Text(
-                "Credential REVOKED",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = RevokedRed,
-            )
-            Text(
-                "Status index $statusIdx is marked revoked by the issuer.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "This credential has been revoked by the issuer",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+        Spacer(Modifier.height(12.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = RevokedRed.copy(alpha = 0.08f),
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = RevokedRed.copy(alpha = 0.7f),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Status index: $statusIdx",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+            }
         }
     }
 }
