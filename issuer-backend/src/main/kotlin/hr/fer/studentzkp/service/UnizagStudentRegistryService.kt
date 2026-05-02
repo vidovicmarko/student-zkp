@@ -1,9 +1,7 @@
 package hr.fer.studentzkp.service
 
 import hr.fer.studentzkp.repository.StudentRepository
-import org.springframework.stereotype.Service
 
-@Service
 class UnizagStudentRegistryService(
     private val studentRepository: StudentRepository,
 ) : StudentRegistryService {

@@ -53,7 +53,7 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 # JNA bridge to the studentzkp-crypto Rust cdylib (BBS+ in BLS12-381). The
 # @aar variant ships JNA's own helper .so per ABI; our libstudentzkp_crypto.so
 # is dropped in app/src/main/jniLibs/<abi>/ separately by build-crypto.sh.
-jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna", ext = "aar" }
+jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

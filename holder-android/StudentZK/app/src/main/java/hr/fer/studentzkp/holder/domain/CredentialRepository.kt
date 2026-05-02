@@ -93,15 +93,30 @@ class CredentialRepository(private val store: CredentialStore) {
 
             val info = BbsVcUtils.extractStudentInfo(data)
 
-            // Fetch issuer's BBS public key
+            // Fetch issuer's BBS public key.
+            // Try the URL embedded in the credential first; fall back to the
+            // server URL configured in the app (handles localhost-issued creds
+            // being verified from a different device).
             val issuerBaseUrl = BbsVcUtils.extractIssuerBaseUrl(data)
-            if (issuerBaseUrl == null) {
-                return@withContext VerificationResult.Invalid(
-                    "Cannot determine issuer URL from credential proof",
-                )
-            }
             val pubKeyBytes = try {
-                val resp = apiClient(issuerBaseUrl).getBbsPublicKey().getOrThrow()
+                val candidates = listOfNotNull(issuerBaseUrl, store.getServerUrl()).distinct()
+                if (candidates.isEmpty()) {
+                    return@withContext VerificationResult.Invalid(
+                        "Cannot determine issuer URL from credential or app settings",
+                    )
+                }
+                var lastError: Exception? = null
+                var resp: hr.fer.studentzkp.holder.data.network.BbsPublicKeyResponse? = null
+                for (url in candidates) {
+                    resp = try {
+                        apiClient(url).getBbsPublicKey().getOrThrow()
+                    } catch (e: Exception) {
+                        lastError = e
+                        null
+                    }
+                    if (resp != null) break
+                }
+                if (resp == null) throw lastError ?: Exception("No issuer URL available")
                 Base64.decode(
                     resp.publicKey,
                     Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
