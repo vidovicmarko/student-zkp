@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import hr.fer.studentzkp.holder.data.model.StoredCredential
 import hr.fer.studentzkp.holder.domain.CredentialRepository
-import hr.fer.studentzkp.holder.util.SdJwtUtils
+import hr.fer.studentzkp.holder.util.BbsVcUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
 @Immutable
 data class DetailUiState(
     val credential: StoredCredential? = null,
-    val disclosureNames: List<String> = emptyList(),
+    val attributeNames: List<String> = emptyList(),
     val showDeleteDialog: Boolean = false,
     val showPresentDialog: Boolean = false,
     val nonceInput: String = "",
@@ -42,10 +42,11 @@ class CredentialDetailViewModel(
             val cred = withContext(Dispatchers.IO) {
                 repository.getAllCredentials().firstOrNull { it.id == credentialId }
             }
-            val disclosures = if (cred != null) {
+            val attrs = if (cred != null) {
                 withContext(Dispatchers.Default) {
                     try {
-                        SdJwtUtils.parse(cred.sdJwt).disclosures.map { it.name }
+                        val data = BbsVcUtils.parse(cred.bbsVcJson)
+                        BbsVcUtils.getAttributeNames(data.messages)
                     } catch (_: Exception) {
                         emptyList()
                     }
@@ -53,7 +54,7 @@ class CredentialDetailViewModel(
             } else emptyList()
             _uiState.value = DetailUiState(
                 credential = cred,
-                disclosureNames = disclosures,
+                attributeNames = attrs,
             )
         }
     }

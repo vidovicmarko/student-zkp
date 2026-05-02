@@ -1,12 +1,13 @@
 package hr.fer.studentzkp.holder.domain
 
 import android.util.Base64
+import hr.fer.studentzkp.holder.crypto.BbsCrypto
 import hr.fer.studentzkp.holder.data.local.CredentialStore
 import hr.fer.studentzkp.holder.data.model.StoredCredential
 import hr.fer.studentzkp.holder.data.model.VerificationResult
 import hr.fer.studentzkp.holder.data.network.IssuerApiClient
+import hr.fer.studentzkp.holder.util.BbsVcUtils
 import hr.fer.studentzkp.holder.util.HolderKeyManager
-import hr.fer.studentzkp.holder.util.SdJwtUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.zip.Inflater
@@ -24,21 +25,18 @@ class CredentialRepository(private val store: CredentialStore) {
     // ─── Issuance ──────────────────────────────────────────────────────────────
 
     /**
-     * Issue a credential via the dev shortcut endpoint (no OID4VCI handshake).
-     * Suitable for development / demo use.
+     * Issue a BBS+ credential via the dev shortcut endpoint.
+     * The issuer returns a W3C VCDM 2.0 BBS VC in the `bbsVc` field.
      */
     suspend fun devIssueAndStore(studentId: String): Result<StoredCredential> {
-        // Pin the SD-JWT-VC to this device by sending the StrongBox/TEE pubkey as cnf.
-        // Issuer copies it into the credential's cnf claim; verifiers later require a
-        // KB-JWT signed by the matching private key.
         val cnfJwk = runCatching { HolderKeyManager.publicKeyJwk() }.getOrNull()
         val result = apiClient().devIssueCredential(studentId, cnfJwk)
         return result.map { resp ->
-            val claims = SdJwtUtils.parse(resp.sdJwt)
-            val info = SdJwtUtils.extractStudentInfo(claims)
+            val data = BbsVcUtils.parse(resp.bbsVcJson)
+            val info = BbsVcUtils.extractStudentInfo(data)
             StoredCredential(
                 id = resp.credentialId,
-                sdJwt = resp.sdJwt,
+                bbsVcJson = resp.bbsVcJson,
                 studentId = studentId,
                 issuedAt = System.currentTimeMillis(),
                 validUntil = info.validUntil,
@@ -50,14 +48,15 @@ class CredentialRepository(private val store: CredentialStore) {
         }
     }
 
-    // ─── Presentation (KB-JWT) ────────────────────────────────────────────────
+    // ─── Presentation (BBS+ selective disclosure) ─────────────────────────────
 
     /**
-     * Build a device-bound presentation for [credentialId] against a verifier challenge.
-     * Returns "<sd-jwt>~<disc1>~...~<discN>~<kb-jwt>".
+     * Build a BBS+ selective-disclosure presentation for [credentialId].
      *
-     * Rules: every selected disclosure must already be present in the stored credential.
-     * If [selectedDisclosureNames] is null, all disclosures are included.
+     * The holder derives a BBS proof that reveals only the selected attributes.
+     * Returns the full BBS VC JSON — for now the presentation is the credential
+     * itself (verifier does full-disclosure verify). A future version will
+     * produce a derived proof with only the selected messages.
      */
     fun buildPresentation(
         credentialId: String,
@@ -67,64 +66,112 @@ class CredentialRepository(private val store: CredentialStore) {
     ): Result<String> = runCatching {
         val cred = store.loadAll().firstOrNull { it.id == credentialId }
             ?: error("Credential not found: $credentialId")
-        val claims = SdJwtUtils.parse(cred.sdJwt)
-        val body = SdJwtUtils.buildPresentationBody(claims, selectedDisclosureNames)
-        val sdHash = SdJwtUtils.computeSdHash(body)
-        val kbJwt = HolderKeyManager.buildKbJwt(nonce, audience, sdHash)
-        body + kbJwt
+        // For now, share the full BBS VC JSON as the presentation.
+        // Selective-disclosure proof derivation will be added when the holder
+        // needs to prove only a subset of attributes.
+        cred.bbsVcJson
     }
 
     // ─── Verification ──────────────────────────────────────────────────────────
 
     /**
-     * Verify a scanned SD-JWT-VC string.
-     * 1. Parse and check disclosure hashes.
-     * 2. Optionally check revocation via status list.
+     * Verify a scanned BBS+ credential JSON.
+     * 1. Parse the W3C VCDM 2.0 credential.
+     * 2. Fetch the issuer's BBS public key.
+     * 3. Derive a full-disclosure proof and verify it against the public key.
+     * 4. Check revocation via status list (fail-soft).
      */
-    suspend fun verifySdJwt(compact: String): VerificationResult = withContext(Dispatchers.IO) {
-        val claims = try {
-            SdJwtUtils.parse(compact)
-        } catch (e: Exception) {
-            return@withContext VerificationResult.Invalid("Failed to parse SD-JWT-VC: ${e.message}")
-        }
+    suspend fun verifyBbsCredential(credentialJson: String): VerificationResult =
+        withContext(Dispatchers.IO) {
+            val data = try {
+                BbsVcUtils.parse(credentialJson)
+            } catch (e: Exception) {
+                return@withContext VerificationResult.Invalid(
+                    "Failed to parse BBS credential: ${e.message}",
+                )
+            }
 
-        val badHashes = SdJwtUtils.verifyDisclosureHashes(claims)
-        if (badHashes.isNotEmpty()) {
-            return@withContext VerificationResult.Invalid(
-                "Disclosure hash mismatch for: ${badHashes.joinToString()}. Credential tampered."
-            )
-        }
+            val info = BbsVcUtils.extractStudentInfo(data)
 
-        val info = SdJwtUtils.extractStudentInfo(claims)
+            // Fetch issuer's BBS public key
+            val issuerBaseUrl = BbsVcUtils.extractIssuerBaseUrl(data)
+            if (issuerBaseUrl == null) {
+                return@withContext VerificationResult.Invalid(
+                    "Cannot determine issuer URL from credential proof",
+                )
+            }
+            val pubKeyBytes = try {
+                val resp = apiClient(issuerBaseUrl).getBbsPublicKey().getOrThrow()
+                Base64.decode(
+                    resp.publicKey,
+                    Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+                )
+            } catch (e: Exception) {
+                return@withContext VerificationResult.Invalid(
+                    "Failed to fetch issuer BBS public key: ${e.message}",
+                )
+            }
 
-        // Revocation check (fail-soft: if unreachable or parse error, treat as unknown)
-        var statusOk: Boolean? = null
-        var revoked = false
-        if (info.statusIdx >= 0) {
-            runCatching {
-                val sl = apiClient().getStatusList().getOrThrow()
-                val inflated = inflate(sl.lst)
-                if (SdJwtUtils.isRevoked(info.statusIdx, inflated)) {
-                    revoked = true
-                } else {
-                    statusOk = true
+            // Verify the BBS+ signature by deriving a full-disclosure proof and
+            // checking it. This proves the credential was signed by the issuer's
+            // secret key without requiring a separate verify-signature FFI call.
+            val messageBytes = data.messages.map { it.toByteArray(Charsets.UTF_8) }
+            val allIndices = messageBytes.indices.toList()
+            val nonce = "verify".toByteArray()
+
+            try {
+                val proofBytes = BbsCrypto.deriveProof(
+                    signature = data.proofValueBytes,
+                    messages = messageBytes,
+                    disclosedIndices = allIndices,
+                    nonce = nonce,
+                )
+                val valid = BbsCrypto.verifyProof(
+                    proof = proofBytes,
+                    publicKey = pubKeyBytes,
+                    disclosedIndices = allIndices,
+                    disclosedMessages = messageBytes,
+                    totalMessageCount = messageBytes.size,
+                    nonce = nonce,
+                )
+                if (!valid) {
+                    return@withContext VerificationResult.Invalid(
+                        "BBS+ signature verification failed: proof did not verify against the issuer's public key.",
+                    )
+                }
+            } catch (e: Exception) {
+                return@withContext VerificationResult.Invalid(
+                    "BBS+ crypto verification error: ${e.message}",
+                )
+            }
+
+            // Revocation check (fail-soft)
+            var statusOk: Boolean? = null
+            var revoked = false
+            if (info.statusIdx >= 0 && !info.statusListUri.isNullOrEmpty()) {
+                runCatching {
+                    val sl = apiClient().getStatusList().getOrThrow()
+                    val inflated = inflate(sl.lst)
+                    if (isRevoked(info.statusIdx, inflated)) {
+                        revoked = true
+                    } else {
+                        statusOk = true
+                    }
                 }
             }
-            // If status fetch or inflate fails, statusOk stays null (unknown)
-        }
 
-        if (revoked) {
-            VerificationResult.Revoked(info.statusIdx)
-        } else {
-        VerificationResult.Valid(
-                isStudent = info.isStudent,
-                validUntil = info.validUntil,
-                universityId = info.universityId,
-                statusOk = statusOk,
-                ageOver18 = info.ageOver18,
-            )
+            if (revoked) {
+                VerificationResult.Revoked(info.statusIdx)
+            } else {
+                VerificationResult.Valid(
+                    isStudent = info.isStudent,
+                    validUntil = info.validUntil,
+                    universityId = info.universityId,
+                    statusOk = statusOk,
+                    ageOver18 = info.ageOver18,
+                )
+            }
         }
-    }
 
     // ─── Settings ─────────────────────────────────────────────────────────────
 
@@ -136,15 +183,25 @@ class CredentialRepository(private val store: CredentialStore) {
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
+    private fun apiClient(baseUrl: String) = IssuerApiClient(baseUrl)
+
+    /** Check revocation bit in an inflated bitstring. */
+    private fun isRevoked(statusIdx: Int, inflatedBits: ByteArray): Boolean {
+        if (statusIdx < 0) return false
+        val byteIdx = statusIdx / 8
+        val bitIdx = statusIdx % 8
+        if (byteIdx >= inflatedBits.size) return false
+        return (inflatedBits[byteIdx].toInt() and (1 shl bitIdx)) != 0
+    }
+
     /**
      * Inflate a base64url-deflate compressed bitstring from the IETF Token Status List.
-     * Backend uses Deflater() (zlib format with header), so nowrap must be false.
      */
     private fun inflate(b64: String): ByteArray {
         val compressed = Base64.decode(b64, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-        val inflater = Inflater(false) // nowrap=false: standard zlib format (matches backend Deflater())
+        val inflater = Inflater(false)
         inflater.setInput(compressed)
-        val buf = ByteArray(131072 / 8) // 131072 bits = 16384 bytes max
+        val buf = ByteArray(131072 / 8)
         val len = inflater.inflate(buf)
         inflater.end()
         return buf.copyOf(len)

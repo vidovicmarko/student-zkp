@@ -3,7 +3,7 @@ package hr.fer.studentzkp.holder.data.network
 data class DevCredentialResponse(
     val credentialId: String,
     val statusIdx: Int,
-    val sdJwt: String,
+    val bbsVcJson: String,
 )
 
 data class CredentialOfferResponse(
@@ -35,4 +35,9 @@ data class StatusListResponse(
 data class HealthResponse(
     val status: String,
     val service: String,
+)
+
+data class BbsPublicKeyResponse(
+    val kid: String,
+    val publicKey: String,
 )

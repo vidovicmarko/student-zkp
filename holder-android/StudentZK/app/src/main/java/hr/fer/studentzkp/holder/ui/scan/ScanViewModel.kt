@@ -36,7 +36,7 @@ class ScanViewModel(private val repository: CredentialRepository) : ViewModel() 
             error = null,
         )
         viewModelScope.launch {
-            val result = repository.verifySdJwt(raw)
+            val result = repository.verifyBbsCredential(raw)
             _uiState.value = _uiState.value.copy(
                 isVerifying = false,
                 result = result,

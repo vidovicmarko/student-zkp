@@ -19,6 +19,13 @@ class IssuerApiClient(private val baseUrl: String) {
         .addInterceptor(HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BASIC
         })
+        .addInterceptor { chain ->
+            // Bypass the ngrok browser-warning interception page when tunnelling via ngrok
+            val req = chain.request().newBuilder()
+                .header("ngrok-skip-browser-warning", "true")
+                .build()
+            chain.proceed(req)
+        }
         .build()
 
     private val json = "application/json".toMediaType()
@@ -42,10 +49,12 @@ class IssuerApiClient(private val baseUrl: String) {
             client.newCall(request).execute().use { resp ->
                 if (!resp.isSuccessful) throw IOException("Server ${resp.code}: ${resp.message}")
                 val obj = JSONObject(resp.body!!.string())
+                val bbsVc = obj.optJSONObject("bbsVc")
+                    ?: throw IOException("Server response missing bbsVc field")
                 DevCredentialResponse(
                     credentialId = obj.getString("credentialId"),
                     statusIdx = obj.getInt("statusIdx"),
-                    sdJwt = obj.getString("sdJwt"),
+                    bbsVcJson = bbsVc.toString(),
                 )
             }
         }
@@ -118,6 +127,25 @@ class IssuerApiClient(private val baseUrl: String) {
         val request = Request.Builder().url("$baseUrl/health").get().build()
         withContext(Dispatchers.IO) {
             client.newCall(request).execute().use { resp -> resp.isSuccessful }
+        }
+    }
+
+    /** GET /.well-known/studentzkp-bbs-key.json — fetch issuer's BBS+ public key */
+    suspend fun getBbsPublicKey(issuerBaseUrl: String? = null): Result<BbsPublicKeyResponse> = runCatching {
+        val base = issuerBaseUrl ?: baseUrl
+        val request = Request.Builder()
+            .url("$base/.well-known/studentzkp-bbs-key.json")
+            .get()
+            .build()
+        withContext(Dispatchers.IO) {
+            client.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("Server ${resp.code}: ${resp.message}")
+                val obj = JSONObject(resp.body!!.string())
+                BbsPublicKeyResponse(
+                    kid = obj.getString("kid"),
+                    publicKey = obj.getString("publicKey"),
+                )
+            }
         }
     }
 
