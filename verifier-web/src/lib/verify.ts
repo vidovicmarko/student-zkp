@@ -3,7 +3,6 @@
 // BBS spec: https://www.w3.org/TR/vc-data-integrity/ + @mattrglobal/bbs-signatures
 import { createRemoteJWKSet, importJWK, jwtVerify, type JWK } from 'jose'
 import pako from 'pako'
-import { verifyProof } from '@mattrglobal/bbs-signatures'
 
 export interface VerifyResult {
   format: 'sd-jwt-vc' | 'bbs-2023'
@@ -118,6 +117,7 @@ export async function verifyBbsCredential(
   credentialJson: string,
   issuerBaseUrl: string,
 ): Promise<VerifyResult> {
+  const { verifyProof } = await import('@mattrglobal/bbs-signatures')
   const credential = JSON.parse(credentialJson) as Record<string, unknown>
   const proof = credential.proof as Record<string, unknown>
   if (!proof) throw new Error('Credential missing proof field')

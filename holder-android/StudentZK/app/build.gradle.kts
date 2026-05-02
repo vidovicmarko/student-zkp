@@ -92,7 +92,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     // JNA bridge to the studentzkp-crypto Rust cdylib (BBS+).
-    implementation(libs.jna)
+    implementation(libs.jna) { artifact { type = "aar" } }
 
     // Testing
     testImplementation(libs.junit)
