@@ -48,29 +48,6 @@ class CredentialRepository(private val store: CredentialStore) {
         }
     }
 
-    // ─── Presentation (BBS+ selective disclosure) ─────────────────────────────
-
-    /**
-     * Build a BBS+ selective-disclosure presentation for [credentialId].
-     *
-     * The holder derives a BBS proof that reveals only the selected attributes.
-     * Returns the full BBS VC JSON — for now the presentation is the credential
-     * itself (verifier does full-disclosure verify). A future version will
-     * produce a derived proof with only the selected messages.
-     */
-    fun buildPresentation(
-        credentialId: String,
-        nonce: String,
-        audience: String,
-    ): Result<String> = runCatching {
-        val cred = store.loadAll().firstOrNull { it.id == credentialId }
-            ?: error("Credential not found: $credentialId")
-        // For now, share the full BBS VC JSON as the presentation.
-        // Selective-disclosure proof derivation will be added when the holder
-        // needs to prove only a subset of attributes.
-        cred.bbsVcJson
-    }
-
     // ─── Verification ──────────────────────────────────────────────────────────
 
     /**
