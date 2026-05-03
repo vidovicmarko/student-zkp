@@ -58,7 +58,7 @@ export default function App() {
     setError(null)
     setResult(null)
     try {
-      const r = await verifyPresentation(input.trim(), ISSUER_BASE_URL, {
+      const r = await verifyPresentation(input.replace(/\s/g, ''), ISSUER_BASE_URL, {
         expectedNonce: nonce,
         expectedAudience: audience,
         requireKeyBinding,
@@ -78,12 +78,12 @@ export default function App() {
     setResult2(null)
     setComparison(null)
     try {
-      const r1 = await verifyPresentation(input.trim(), ISSUER_BASE_URL, {
+      const r1 = await verifyPresentation(input.replace(/\s/g, ''), ISSUER_BASE_URL, {
         expectedNonce: nonce,
         expectedAudience: audience,
         requireKeyBinding: false,
       }, DCQL_REQUEST)
-      const r2 = await verifyPresentation(input2.trim(), ISSUER_BASE_URL, {
+      const r2 = await verifyPresentation(input2.replace(/\s/g, ''), ISSUER_BASE_URL, {
         expectedNonce: nonce,
         expectedAudience: audience,
         requireKeyBinding: false,
@@ -170,7 +170,7 @@ export default function App() {
           <div style={{ marginTop: 12 }}>
             <button
               onClick={handleVerify}
-              disabled={input.trim().length === 0}
+              disabled={input.replace(/\s/g, '').length === 0}
               style={primaryButton}
             >
               Verify
@@ -208,7 +208,7 @@ export default function App() {
           <div style={{ marginTop: 12 }}>
             <button
               onClick={handleCompareProofs}
-              disabled={input.trim().length === 0 || input2.trim().length === 0}
+              disabled={input.replace(/\s/g, '').length === 0 || input2.replace(/\s/g, '').length === 0}
               style={primaryButton}
             >
               Compare proofs
