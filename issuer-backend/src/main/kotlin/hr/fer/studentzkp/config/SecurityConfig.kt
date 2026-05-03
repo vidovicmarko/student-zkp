@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -49,7 +50,7 @@ class SecurityConfig(
                 // Spring 6.4's MvcRequestMatcher (the default for String overloads)
                 // requires an MVC handler for the path, so unmapped paths fall through
                 // to anyRequest() — which makes misconfiguration look like 401.
-                auth.requestMatchers { req ->
+                auth.requestMatchers(RequestMatcher { req ->
                     val p = req.requestURI
                     p == "/health" ||
                         p.startsWith("/actuator/health") ||
@@ -65,19 +66,19 @@ class SecurityConfig(
                         p == "/swagger-ui" ||
                         p.startsWith("/swagger-ui/") ||
                         p == "/swagger-ui.html"
-                }.permitAll()
+                }).permitAll()
 
                 // Dev shortcuts: open when the dev-shortcut profile is active.
                 if (devShortcut) {
-                    auth.requestMatchers { it.requestURI.startsWith("/dev/") }.permitAll()
+                    auth.requestMatchers(RequestMatcher { it.requestURI.startsWith("/dev/") }).permitAll()
                 } else {
-                    auth.requestMatchers { it.requestURI.startsWith("/dev/") }.denyAll()
+                    auth.requestMatchers(RequestMatcher { it.requestURI.startsWith("/dev/") }).denyAll()
                 }
 
                 // Privileged surfaces: HTTP Basic against the admin user.
-                auth.requestMatchers { req ->
+                auth.requestMatchers(RequestMatcher { req ->
                     req.requestURI.startsWith("/integrity/") || req.requestURI.startsWith("/admin/")
-                }.authenticated()
+                }).authenticated()
                 auth.anyRequest().denyAll()
             }
         return http.build()
