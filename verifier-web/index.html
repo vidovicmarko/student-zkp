@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StudentZK Verifier</title>
+    <script>
+      // Polyfill for Node-flavored deps (@mattrglobal/bbs-signatures, @stablelib/random)
+      // that reference process.env at runtime. Browser has no process — define a stub
+      // before the bundle loads so those reads return undefined instead of throwing.
+      window.global = window;
+      window.process = { env: {} };
+    </script>
   </head>
   <body>
     <div id="root"></div>
