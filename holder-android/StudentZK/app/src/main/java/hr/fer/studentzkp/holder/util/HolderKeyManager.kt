@@ -7,13 +7,12 @@ import android.util.Base64
 import org.json.JSONObject
 import java.security.KeyPairGenerator
 import java.security.KeyStore
-import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 
 /**
  * Manages the holder's hardware-bound ES256 key in AndroidKeyStore.
- * Used for generating Key-Binding JWTs in the OID4VCI proof flow.
+ * Used for embedding a cnf JWK in issued credentials.
  */
 object HolderKeyManager {
 
@@ -39,7 +38,7 @@ object HolderKeyManager {
         }
     }
 
-    /** Returns the public key as a JWK JSONObject for embedding in proof JWTs. */
+    /** Returns the public key as a JWK JSONObject for embedding in credentials. */
     fun publicKeyJwk(): JSONObject {
         val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).also { it.load(null) }
         val pub = ks.getCertificate(KEY_ALIAS).publicKey as ECPublicKey
@@ -51,73 +50,6 @@ object HolderKeyManager {
             .put("crv", "P-256")
             .put("x", Base64.encodeToString(x, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING))
             .put("y", Base64.encodeToString(y, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING))
-    }
-
-    /**
-     * Build an OID4VCI proof JWT.
-     * Header: {"alg":"ES256","typ":"openid4vci-proof+jwt","jwk":<pub>}
-     * Payload: {"aud":<issuerUrl>,"iat":<now>,"nonce":<cNonce>}
-     */
-    fun buildProofJwt(issuerUrl: String, cNonce: String): String {
-        val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).also { it.load(null) }
-        val privateKey = ks.getKey(KEY_ALIAS, null) as java.security.PrivateKey
-
-        val headerJson = JSONObject()
-            .put("alg", "ES256")
-            .put("typ", "openid4vci-proof+jwt")
-            .put("jwk", publicKeyJwk())
-        val payloadJson = JSONObject()
-            .put("aud", issuerUrl)
-            .put("iat", System.currentTimeMillis() / 1000)
-            .put("nonce", cNonce)
-
-        val headerB64 = b64url(headerJson.toString().toByteArray(Charsets.UTF_8))
-        val payloadB64 = b64url(payloadJson.toString().toByteArray(Charsets.UTF_8))
-        val signingInput = "$headerB64.$payloadB64"
-
-        val sig = Signature.getInstance("SHA256withECDSA").run {
-            initSign(privateKey)
-            update(signingInput.toByteArray(Charsets.UTF_8))
-            sign()
-        }
-        // Convert DER-encoded ECDSA sig to raw R||S (64 bytes)
-        val rawSig = derToRaw(sig)
-        val sigB64 = b64url(rawSig)
-        return "$signingInput.$sigB64"
-    }
-
-    /**
-     * Build a Key-Binding JWT (draft-ietf-oauth-sd-jwt-vc §4.3).
-     * Header:  {"alg":"ES256","typ":"kb+jwt"}
-     * Payload: {"nonce":<>,"aud":<>,"iat":<now>,"sd_hash":<b64url(sha256(sd-jwt~disc1~...~))>}
-     *
-     * The verifier extracts the cnf.jwk from the SD-JWT payload and uses it to
-     * verify this signature, proving the holder controls the StrongBox key the
-     * issuer pinned at issuance time.
-     */
-    fun buildKbJwt(nonce: String, audience: String, sdHashB64Url: String): String {
-        val ks = KeyStore.getInstance(KEYSTORE_PROVIDER).also { it.load(null) }
-        val privateKey = ks.getKey(KEY_ALIAS, null) as java.security.PrivateKey
-
-        val headerJson = JSONObject()
-            .put("alg", "ES256")
-            .put("typ", "kb+jwt")
-        val payloadJson = JSONObject()
-            .put("nonce", nonce)
-            .put("aud", audience)
-            .put("iat", System.currentTimeMillis() / 1000)
-            .put("sd_hash", sdHashB64Url)
-
-        val headerB64 = b64url(headerJson.toString().toByteArray(Charsets.UTF_8))
-        val payloadB64 = b64url(payloadJson.toString().toByteArray(Charsets.UTF_8))
-        val signingInput = "$headerB64.$payloadB64"
-
-        val sig = Signature.getInstance("SHA256withECDSA").run {
-            initSign(privateKey)
-            update(signingInput.toByteArray(Charsets.UTF_8))
-            sign()
-        }
-        return "$signingInput.${b64url(derToRaw(sig))}"
     }
 
     fun hasKey(): Boolean {
@@ -139,23 +71,4 @@ object HolderKeyManager {
     private fun stripLeadingZero(bytes: ByteArray): ByteArray =
         if (bytes.size == 33 && bytes[0] == 0.toByte()) bytes.copyOfRange(1, bytes.size)
         else bytes
-
-    private fun b64url(data: ByteArray): String =
-        Base64.encodeToString(data, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-
-    /** Convert DER ECDSA signature → fixed 64-byte R||S */
-    private fun derToRaw(der: ByteArray): ByteArray {
-        var offset = 2 // skip SEQUENCE tag + length
-        val rLen = der[offset + 1].toInt() and 0xFF
-        val r = der.copyOfRange(offset + 2, offset + 2 + rLen)
-        offset += 2 + rLen
-        val sLen = der[offset + 1].toInt() and 0xFF
-        val s = der.copyOfRange(offset + 2, offset + 2 + sLen)
-        val result = ByteArray(64)
-        val rTrimmed = stripLeadingZero(r)
-        val sTrimmed = stripLeadingZero(s)
-        rTrimmed.copyInto(result, 32 - rTrimmed.size)
-        sTrimmed.copyInto(result, 64 - sTrimmed.size)
-        return result
-    }
 }

@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /**
  * BBS+ Verifiable Credential (W3C VCDM 2.0 with studentzk-bbs-2023 cryptosuite)
- * parsing and extraction utilities. Replaces SdJwtUtils for the BBS-only flow.
+ * parsing and extraction utilities.
  */
 
 data class BbsVcData(
@@ -122,3 +122,12 @@ object BbsVcUtils {
             .map { it.substringBefore("=").removePrefix("credentialSubject.") }
     }
 }
+
+data class StudentInfo(
+    val isStudent: Boolean,
+    val validUntil: String?,
+    val universityId: String?,
+    val statusIdx: Int,
+    val statusListUri: String?,
+    val ageOver18: Boolean? = null,
+)

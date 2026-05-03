@@ -14,7 +14,7 @@ import java.util.zip.Inflater
 
 class CredentialRepository(private val store: CredentialStore) {
 
-    private fun apiClient() = IssuerApiClient(store.getServerUrl())
+    private fun apiClient(baseUrl: String = store.getServerUrl()) = IssuerApiClient(baseUrl)
 
     // ─── Wallet storage ────────────────────────────────────────────────────────
 
@@ -62,7 +62,6 @@ class CredentialRepository(private val store: CredentialStore) {
         credentialId: String,
         nonce: String,
         audience: String,
-        selectedDisclosureNames: Set<String>? = null,
     ): Result<String> = runCatching {
         val cred = store.loadAll().firstOrNull { it.id == credentialId }
             ?: error("Credential not found: $credentialId")
@@ -210,8 +209,6 @@ class CredentialRepository(private val store: CredentialStore) {
         apiClient().checkHealth().getOrElse { false }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
-
-    private fun apiClient(baseUrl: String) = IssuerApiClient(baseUrl)
 
     /** Check revocation bit in an inflated bitstring. */
     private fun isRevoked(statusIdx: Int, inflatedBits: ByteArray): Boolean {

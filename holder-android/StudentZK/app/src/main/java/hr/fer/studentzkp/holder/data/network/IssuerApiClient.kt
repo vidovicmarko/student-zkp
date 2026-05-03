@@ -29,7 +29,6 @@ class IssuerApiClient(private val baseUrl: String) {
         .build()
 
     private val json = "application/json".toMediaType()
-    private val formEncoded = "application/x-www-form-urlencoded".toMediaType()
 
     /** POST /dev/credential/{studentId} — issues credential bypassing OID4VCI */
     suspend fun devIssueCredential(
@@ -55,52 +54,6 @@ class IssuerApiClient(private val baseUrl: String) {
                     credentialId = obj.getString("credentialId"),
                     statusIdx = obj.getInt("statusIdx"),
                     bbsVcJson = bbsVc.toString(),
-                )
-            }
-        }
-    }
-
-    /** POST /dev/credential-offer/{studentId} */
-    suspend fun createCredentialOffer(studentId: String): Result<CredentialOfferResponse> =
-        runCatching {
-            val request = Request.Builder()
-                .url("$baseUrl/dev/credential-offer/$studentId")
-                .post("{}".toRequestBody(json))
-                .build()
-            withContext(Dispatchers.IO) {
-                client.newCall(request).execute().use { resp ->
-                    if (!resp.isSuccessful) throw IOException("Server ${resp.code}: ${resp.message}")
-                    val obj = JSONObject(resp.body!!.string())
-                    CredentialOfferResponse(
-                        offerId = obj.getString("offer_id"),
-                        preAuthorizedCode = obj.getString("pre_authorized_code"),
-                        credentialOfferUri = obj.getString("credential_offer_uri"),
-                        deepLink = obj.getString("deep_link"),
-                        expiresInSeconds = obj.getInt("expires_in_seconds"),
-                    )
-                }
-            }
-        }
-
-    /** POST /token */
-    suspend fun exchangeToken(preAuthorizedCode: String): Result<TokenResponse> = runCatching {
-        val formBody =
-            "grant_type=${encode("urn:ietf:params:oauth:grant-type:pre-authorized_code")}" +
-                "&pre-authorized_code=${encode(preAuthorizedCode)}"
-        val request = Request.Builder()
-            .url("$baseUrl/token")
-            .post(formBody.toRequestBody(formEncoded))
-            .build()
-        withContext(Dispatchers.IO) {
-            client.newCall(request).execute().use { resp ->
-                if (!resp.isSuccessful) throw IOException("Server ${resp.code}: ${resp.message}")
-                val obj = JSONObject(resp.body!!.string())
-                TokenResponse(
-                    accessToken = obj.getString("access_token"),
-                    tokenType = obj.getString("token_type"),
-                    expiresIn = obj.getInt("expires_in"),
-                    cNonce = obj.getString("c_nonce"),
-                    cNonceExpiresIn = obj.getInt("c_nonce_expires_in"),
                 )
             }
         }
@@ -148,6 +101,4 @@ class IssuerApiClient(private val baseUrl: String) {
             }
         }
     }
-
-    private fun encode(value: String) = java.net.URLEncoder.encode(value, "UTF-8")
 }

@@ -18,6 +18,4 @@ sealed class VerificationResult {
 
     @Immutable
     data class Revoked(val statusIdx: Int) : VerificationResult()
-
-    data object Pending : VerificationResult()
 }
