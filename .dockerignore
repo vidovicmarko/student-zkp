@@ -1,0 +1,25 @@
+# Keep the build context small — speeds up `docker build` uploads.
+
+# VCS
+.git
+.gitignore
+
+# Frontend / Android — not needed for the issuer image
+verifier-web
+holder-android
+docs
+documentation
+*.md
+
+# Build outputs (let the Dockerfile build fresh)
+issuer-backend/build
+issuer-backend/.gradle
+crypto-core/target
+
+# IDE / OS
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+.claude
+.studentzkp
