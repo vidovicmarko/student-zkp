@@ -12,7 +12,6 @@ import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher.antMatcher
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -46,39 +45,39 @@ class SecurityConfig(
             .authorizeHttpRequests { auth ->
                 // Public, unauthenticated routes — wallets and verifiers hit
                 // these without credentials.
-                // antMatcher() forces path-based matching instead of Spring 6.4's
-                // MvcRequestMatcher default. MvcRequestMatcher requires Spring MVC
-                // to have a registered handler for the path — if a controller bean
-                // fails to create, its path 401s instead of 404ing, which makes
-                // misconfiguration vs. missing-route indistinguishable.
-                auth.requestMatchers(
-                    antMatcher("/health"),
-                    antMatcher("/actuator/health"),
-                    antMatcher("/.well-known/**"),
-                    antMatcher("/statuslist/**"),
-                    // OID4VCI public surface (final_plan §5.1, ROADMAP Phase 1.5).
-                    antMatcher("/credential-offer/**"),
-                    antMatcher("/token"),
-                    antMatcher("/credential"),
-                    // Swagger UI + OpenAPI spec (springdoc).
-                    antMatcher("/v3/api-docs"),
-                    antMatcher("/v3/api-docs/**"),
-                    antMatcher("/swagger-ui"),
-                    antMatcher("/swagger-ui/**"),
-                    antMatcher("/swagger-ui.html"),
-                ).permitAll()
+                // Lambda matchers — pure URI prefix checks, no MVC handler dependency.
+                // Spring 6.4's MvcRequestMatcher (the default for String overloads)
+                // requires an MVC handler for the path, so unmapped paths fall through
+                // to anyRequest() — which makes misconfiguration look like 401.
+                auth.requestMatchers { req ->
+                    val p = req.requestURI
+                    p == "/health" ||
+                        p.startsWith("/actuator/health") ||
+                        p.startsWith("/.well-known/") ||
+                        p.startsWith("/statuslist/") ||
+                        // OID4VCI public surface
+                        p.startsWith("/credential-offer/") ||
+                        p == "/token" ||
+                        p == "/credential" ||
+                        // Swagger UI + OpenAPI spec
+                        p == "/v3/api-docs" ||
+                        p.startsWith("/v3/api-docs/") ||
+                        p == "/swagger-ui" ||
+                        p.startsWith("/swagger-ui/") ||
+                        p == "/swagger-ui.html"
+                }.permitAll()
 
-                // Dev shortcuts: open when the dev-shortcut profile is active,
-                // refused at the firewall otherwise. Defense in depth — the
-                // controllers themselves are also @Profile("dev-shortcut").
+                // Dev shortcuts: open when the dev-shortcut profile is active.
                 if (devShortcut) {
-                    auth.requestMatchers(antMatcher("/dev/**")).permitAll()
+                    auth.requestMatchers { it.requestURI.startsWith("/dev/") }.permitAll()
                 } else {
-                    auth.requestMatchers(antMatcher("/dev/**")).denyAll()
+                    auth.requestMatchers { it.requestURI.startsWith("/dev/") }.denyAll()
                 }
 
                 // Privileged surfaces: HTTP Basic against the admin user.
-                auth.requestMatchers(antMatcher("/integrity/**"), antMatcher("/admin/**")).authenticated()
+                auth.requestMatchers { req ->
+                    req.requestURI.startsWith("/integrity/") || req.requestURI.startsWith("/admin/")
+                }.authenticated()
                 auth.anyRequest().denyAll()
             }
         return http.build()
