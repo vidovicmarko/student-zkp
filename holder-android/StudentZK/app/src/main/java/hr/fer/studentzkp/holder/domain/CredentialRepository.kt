@@ -94,17 +94,13 @@ class CredentialRepository(private val store: CredentialStore) {
             val info = BbsVcUtils.extractStudentInfo(data)
 
             // Fetch issuer's BBS public key.
-            // Try the URL embedded in the credential first; fall back to the
-            // server URL configured in the app (handles localhost-issued creds
-            // being verified from a different device).
+            // Try network first (embedded URL + configured server URL); on success
+            // cache the key by kid. On failure, fall back to the cached key so
+            // verification works offline after the first successful fetch.
             val issuerBaseUrl = BbsVcUtils.extractIssuerBaseUrl(data)
+            val kid = BbsVcUtils.extractKid(data)
             val pubKeyBytes = try {
                 val candidates = listOfNotNull(issuerBaseUrl, store.getServerUrl()).distinct()
-                if (candidates.isEmpty()) {
-                    return@withContext VerificationResult.Invalid(
-                        "Cannot determine issuer URL from credential or app settings",
-                    )
-                }
                 var lastError: Exception? = null
                 var resp: hr.fer.studentzkp.holder.data.network.BbsPublicKeyResponse? = null
                 for (url in candidates) {
@@ -116,11 +112,28 @@ class CredentialRepository(private val store: CredentialStore) {
                     }
                     if (resp != null) break
                 }
-                if (resp == null) throw lastError ?: Exception("No issuer URL available")
-                Base64.decode(
-                    resp.publicKey,
-                    Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
-                )
+                if (resp != null) {
+                    // Cache for offline use
+                    val cacheKid = resp.kid.ifBlank { kid }
+                    if (!cacheKid.isNullOrBlank()) {
+                        store.cacheIssuerKey(cacheKid, resp.publicKey)
+                    }
+                    Base64.decode(
+                        resp.publicKey,
+                        Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+                    )
+                } else {
+                    // Offline fallback: try cached key
+                    val cached = kid?.let { store.getCachedIssuerKey(it) }
+                    if (cached != null) {
+                        Base64.decode(
+                            cached,
+                            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+                        )
+                    } else {
+                        throw lastError ?: Exception("No issuer URL available and no cached key")
+                    }
+                }
             } catch (e: Exception) {
                 return@withContext VerificationResult.Invalid(
                     "Failed to fetch issuer BBS public key: ${e.message}",

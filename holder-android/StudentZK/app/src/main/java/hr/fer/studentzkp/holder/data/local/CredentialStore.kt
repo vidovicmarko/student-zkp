@@ -53,6 +53,15 @@ class CredentialStore(context: Context) {
         settingsPrefs.edit().putString(KEY_SERVER_URL, url.trimEnd('/')).apply()
     }
 
+    /** Cache an issuer's BBS public key (base64url-encoded) by its kid. */
+    fun cacheIssuerKey(kid: String, publicKeyB64: String) {
+        settingsPrefs.edit().putString("$KEY_ISSUER_KEY_PREFIX$kid", publicKeyB64).apply()
+    }
+
+    /** Retrieve a cached issuer BBS public key by kid, or null if not cached. */
+    fun getCachedIssuerKey(kid: String): String? =
+        settingsPrefs.getString("$KEY_ISSUER_KEY_PREFIX$kid", null)
+
     private fun persist(list: List<StoredCredential>) {
         val arr = JSONArray()
         list.forEach { arr.put(toJson(it)) }
@@ -88,6 +97,7 @@ class CredentialStore(context: Context) {
     companion object {
         private const val KEY_CREDENTIALS = "credentials"
         private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_ISSUER_KEY_PREFIX = "issuer_bbs_key_"
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:8080"
     }
 }
