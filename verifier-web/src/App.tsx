@@ -1,6 +1,36 @@
 import { useMemo, useState } from 'react'
 import { verifyPresentation, type VerifyResult, type DcqlRequest } from './lib/verify'
 
+/**
+ * Decompress a QR payload that was DEFLATE-compressed by the Android app.
+ * Format: "Z:" prefix + base64url(deflate(json)). Non-prefixed strings pass through.
+ */
+function decompressQr(payload: string): string {
+  if (!payload.startsWith('Z:')) return payload
+  const b64 = payload.slice(2).replace(/-/g, '+').replace(/_/g, '/')
+  const binStr = atob(b64)
+  const bytes = new Uint8Array(binStr.length)
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i)
+  const ds = new DecompressionStream('deflate-raw')
+  const writer = ds.writable.getWriter()
+  writer.write(bytes)
+  writer.close()
+  return new Response(ds.readable).text() as unknown as string
+}
+
+async function decompressQrAsync(payload: string): Promise<string> {
+  if (!payload.startsWith('Z:')) return payload
+  const b64 = payload.slice(2).replace(/-/g, '+').replace(/_/g, '/')
+  const binStr = atob(b64)
+  const bytes = new Uint8Array(binStr.length)
+  for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i)
+  const ds = new DecompressionStream('deflate-raw')
+  const writer = ds.writable.getWriter()
+  writer.write(bytes)
+  writer.close()
+  return new Response(ds.readable).text()
+}
+
 // Verifier web app (final_plan §5.4). All crypto + validation runs client-side
 // — zero data retention by construction. Phase 1 ships a paste-in flow; QR
 // scanning is a Phase 2 addition (@zxing/library on top of getUserMedia).
@@ -58,7 +88,8 @@ export default function App() {
     setError(null)
     setResult(null)
     try {
-      const r = await verifyPresentation(input.trim(), ISSUER_BASE_URL, {
+      const decompressed = await decompressQrAsync(input.trim())
+      const r = await verifyPresentation(decompressed, ISSUER_BASE_URL, {
         expectedNonce: nonce,
         expectedAudience: audience,
         requireKeyBinding,
@@ -78,12 +109,14 @@ export default function App() {
     setResult2(null)
     setComparison(null)
     try {
-      const r1 = await verifyPresentation(input.trim(), ISSUER_BASE_URL, {
+      const d1 = await decompressQrAsync(input.trim())
+      const r1 = await verifyPresentation(d1, ISSUER_BASE_URL, {
         expectedNonce: nonce,
         expectedAudience: audience,
         requireKeyBinding: false,
       }, DCQL_REQUEST)
-      const r2 = await verifyPresentation(input2.trim(), ISSUER_BASE_URL, {
+      const d2 = await decompressQrAsync(input2.trim())
+      const r2 = await verifyPresentation(d2, ISSUER_BASE_URL, {
         expectedNonce: nonce,
         expectedAudience: audience,
         requireKeyBinding: false,

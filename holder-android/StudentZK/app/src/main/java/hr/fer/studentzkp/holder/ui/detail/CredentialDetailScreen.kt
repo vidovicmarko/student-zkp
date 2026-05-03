@@ -148,14 +148,14 @@ fun CredentialDetailScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     val qrBitmap: Bitmap = remember(cred.bbsVcJson) {
-                        QrCodeUtils.generate(cred.bbsVcJson, 512)
+                        QrCodeUtils.generate(cred.bbsVcJson)
                     }
                     Image(
                         bitmap = qrBitmap.asImageBitmap(),
                         contentDescription = "QR Code",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .size(260.dp)
+                            .size(300.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
                     )
@@ -295,7 +295,7 @@ fun CredentialDetailScreen(
                         HorizontalDivider()
                         Text("Presentation generated", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         val presBitmap: Bitmap = remember(state.presentation) {
-                            QrCodeUtils.generate(state.presentation!!, 512)
+                            QrCodeUtils.generate(state.presentation!!)
                         }
                         Box(
                             modifier = Modifier
@@ -308,7 +308,7 @@ fun CredentialDetailScreen(
                                 contentDescription = "Presentation QR",
                                 contentScale = ContentScale.Fit,
                                 modifier = Modifier
-                                    .size(200.dp)
+                                    .size(280.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
                             )
