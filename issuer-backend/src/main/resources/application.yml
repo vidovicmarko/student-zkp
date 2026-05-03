@@ -7,7 +7,7 @@ spring:
     group:
       local: dev-shortcut
   datasource:
-    url: jdbc:postgresql://localhost:5432/studentzkp
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/studentzkp}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:mama5337}
   jpa:
