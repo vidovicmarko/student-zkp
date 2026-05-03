@@ -29,7 +29,7 @@ class SecurityConfig(
     private val log = LoggerFactory.getLogger(SecurityConfig::class.java)
 
     @Bean
-    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    fun securityFilterChain(http: HttpSecurity, corsConfigurationSource: CorsConfigurationSource): SecurityFilterChain {
         val devShortcut = "dev-shortcut" in environment.activeProfiles
         log.info(
             "SecurityConfig: activeProfiles={}, devShortcutPermit={}",
@@ -39,7 +39,7 @@ class SecurityConfig(
 
         http
             .csrf { it.disable() }
-            .cors { it.configurationSource(corsConfigurationSource()) }
+            .cors { it.configurationSource(corsConfigurationSource) }
             .httpBasic(Customizer.withDefaults())
             .formLogin { it.disable() }
             .authorizeHttpRequests { auth ->
@@ -108,9 +108,11 @@ class SecurityConfig(
     }
 
     @Bean
-    fun corsConfigurationSource(): CorsConfigurationSource {
+    fun corsConfigurationSource(
+        @Value("\${studentzkp.cors.allowed-origins:http://localhost:5173}") allowedOriginsCsv: String,
+    ): CorsConfigurationSource {
         val config = CorsConfiguration().apply {
-            allowedOrigins = listOf("http://localhost:5173")
+            allowedOrigins = allowedOriginsCsv.split(",").map(String::trim).filter(String::isNotEmpty)
             allowedMethods = listOf("GET", "POST", "OPTIONS")
             allowedHeaders = listOf("*")
             maxAge = 3600
