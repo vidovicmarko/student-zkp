@@ -85,6 +85,13 @@ tasks.withType<Test> {
     systemProperty("jna.library.path", file("build/native").absolutePath)
 }
 
+// Suppress the *-plain.jar — Spring Boot's bootJar is the only runnable artifact.
+// Without this, a Dockerfile glob like `COPY *.jar` picks up the plain jar
+// (alphabetically last) and `java -jar` fails with "no main manifest attribute".
+tasks.named<Jar>("jar") {
+    enabled = false
+}
+
 // Point JNA at the studentzkp-crypto cdylib produced by `scripts/build-crypto.sh host`.
 // Path is set unconditionally — if the file is missing JNA only fails when
 // BbsCryptoBridge is first touched, so unrelated bootRun usage stays unaffected.

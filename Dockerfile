@@ -20,7 +20,7 @@ RUN chmod +x gradlew && ./gradlew bootJar -x test --no-daemon
 # ── Stage 3: runtime ──────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=jvm /build/build/libs/*.jar /app/app.jar
+COPY --from=jvm /build/build/libs/student-zkp-issuer-*.jar /app/app.jar
 COPY --from=crypto /build/target/release/libstudentzkp_crypto.so /app/lib/
 # JNA looks here first; LD_LIBRARY_PATH covers Linux's default loader too.
 ENV LD_LIBRARY_PATH=/app/lib
