@@ -154,17 +154,17 @@ fun SettingsScreen(
                         Text("About StudentZK", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     }
                     Text(
-                        "Privacy-preserving student credentials using SD-JWT-VC and selective disclosure. " +
-                            "Aligned with OID4VCI / eIDAS 2.0.",
+                        "Privacy-preserving student credentials using BBS+ signatures " +
+                            "on BLS12-381 with selective disclosure and unlinkable presentations.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     )
                     HorizontalDivider()
-                    InfoRow("Protocol", "SD-JWT-VC (OID4VCI)")
-                    InfoRow("Signature", "ES256 / ECDSA P-256")
+                    InfoRow("Protocol", "W3C VCDM 2.0")
+                    InfoRow("Signature", "BBS+ / BLS12-381")
                     InfoRow("Revocation", "IETF Token Status List")
                     InfoRow("Key storage", "AndroidKeyStore (TEE)")
-                    InfoRow("Version", "1.0.0")
+                    InfoRow("Version", "2.0.0")
                 }
             }
             Spacer(Modifier.height(80.dp))
