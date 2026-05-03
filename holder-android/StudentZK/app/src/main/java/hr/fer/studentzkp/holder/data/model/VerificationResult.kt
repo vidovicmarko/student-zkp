@@ -6,7 +6,7 @@ import androidx.compose.runtime.Immutable
 sealed class VerificationResult {
     @Immutable
     data class Valid(
-        val isStudent: Boolean,
+        val isStudent: Boolean? = null,
         val validUntil: String?,
         val universityId: String?,
         val statusOk: Boolean?,

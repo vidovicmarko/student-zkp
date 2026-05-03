@@ -121,6 +121,107 @@ object BbsVcUtils {
             .filter { it.startsWith("credentialSubject.") }
             .map { it.substringBefore("=").removePrefix("credentialSubject.") }
     }
+
+    /**
+     * Get all message entries with their indices for selective disclosure UI.
+     * Returns pairs of (index, human-readable label).
+     */
+    fun getIndexedAttributes(messages: List<String>): List<Pair<Int, String>> {
+        return messages.mapIndexedNotNull { idx, msg ->
+            if (msg.startsWith("credentialSubject.")) {
+                idx to msg.substringBefore("=").removePrefix("credentialSubject.")
+            } else {
+                null
+            }
+        }
+    }
+
+    /**
+     * Build a selective-disclosure presentation JSON.
+     * Contains only the disclosed messages, their indices, and the derived BBS proof.
+     */
+    fun buildSelectivePresentation(
+        data: BbsVcData,
+        disclosedIndices: List<Int>,
+        derivedProof: ByteArray,
+    ): String {
+        val disclosedMessages = disclosedIndices.map { data.messages[it] }
+        val proofB64 = Base64.encodeToString(
+            derivedProof,
+            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+        )
+
+        val presentation = JSONObject().apply {
+            put("type", "BbsSelectiveDisclosure")
+            put("issuer", data.issuer)
+            put("validFrom", data.validFrom ?: JSONObject.NULL)
+            put("validUntil", data.validUntil ?: JSONObject.NULL)
+            put("credentialStatus", data.credentialStatus ?: JSONObject.NULL)
+            put("proof", JSONObject().apply {
+                put("type", "DataIntegrityProof")
+                put("cryptosuite", "studentzk-bbs-2023")
+                put("verificationMethod", data.proof.optString("verificationMethod"))
+                put("derivedProofValue", proofB64)
+                put("disclosedIndices", org.json.JSONArray(disclosedIndices))
+                put("disclosedMessages", org.json.JSONArray(disclosedMessages))
+                put("totalMessageCount", data.messages.size)
+                put("nonce", "selective-disclosure")
+            })
+        }
+        return presentation.toString()
+    }
+
+    /**
+     * Check if a JSON string is a selective-disclosure presentation (vs full credential).
+     */
+    fun isSelectivePresentation(jsonStr: String): Boolean {
+        return try {
+            val obj = JSONObject(jsonStr)
+            obj.optString("type") == "BbsSelectiveDisclosure"
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    data class SelectivePresentationData(
+        val issuer: String,
+        val validFrom: String?,
+        val validUntil: String?,
+        val credentialStatus: JSONObject?,
+        val verificationMethod: String,
+        val derivedProofBytes: ByteArray,
+        val disclosedIndices: List<Int>,
+        val disclosedMessages: List<String>,
+        val totalMessageCount: Int,
+        val nonce: String,
+    )
+
+    /** Parse a selective-disclosure presentation JSON. */
+    fun parseSelectivePresentation(jsonStr: String): SelectivePresentationData {
+        val obj = JSONObject(jsonStr)
+        require(obj.optString("type") == "BbsSelectiveDisclosure") {
+            "Not a selective-disclosure presentation"
+        }
+        val proof = obj.getJSONObject("proof")
+        val indicesArr = proof.getJSONArray("disclosedIndices")
+        val messagesArr = proof.getJSONArray("disclosedMessages")
+
+        return SelectivePresentationData(
+            issuer = obj.optString("issuer", ""),
+            validFrom = obj.optString("validFrom").takeIf { it.isNotEmpty() && it != "null" },
+            validUntil = obj.optString("validUntil").takeIf { it.isNotEmpty() && it != "null" },
+            credentialStatus = obj.optJSONObject("credentialStatus"),
+            verificationMethod = proof.getString("verificationMethod"),
+            derivedProofBytes = Base64.decode(
+                proof.getString("derivedProofValue"),
+                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING,
+            ),
+            disclosedIndices = (0 until indicesArr.length()).map { indicesArr.getInt(it) },
+            disclosedMessages = (0 until messagesArr.length()).map { messagesArr.getString(it) },
+            totalMessageCount = proof.getInt("totalMessageCount"),
+            nonce = proof.optString("nonce", "selective-disclosure"),
+        )
+    }
 }
 
 data class StudentInfo(

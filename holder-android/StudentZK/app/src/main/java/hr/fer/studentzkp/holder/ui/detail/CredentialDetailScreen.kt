@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -186,21 +187,114 @@ fun CredentialDetailScreen(
                 }
             }
 
-            // ── Signed attributes ────────────────────────────────────────────
-            if (state.attributeNames.isNotEmpty()) {
+            // ── Selective Disclosure ──────────────────────────────────────
+            if (state.indexedAttributes.isNotEmpty()) {
                 ElevatedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Signed Attributes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        state.attributeNames.forEach { name ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.secondary,
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Selective Disclosure", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Choose which attributes to reveal. Unselected attributes stay hidden but the proof remains cryptographically valid.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        state.indexedAttributes.forEach { (idx, name) ->
+                            val checked = idx in state.selectedIndices
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { vm.toggleAttribute(idx) }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = { vm.toggleAttribute(idx) },
                                 )
-                                Spacer(Modifier.width(8.dp))
                                 Text(name, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+
+                        if (state.presentationError != null) {
+                            Text(
+                                state.presentationError!!,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+
+                        if (state.presentationJson == null) {
+                            Button(
+                                onClick = { vm.generatePresentation() },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = state.selectedIndices.isNotEmpty() && !state.isGenerating,
+                            ) {
+                                if (state.isGenerating) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Generating…")
+                                } else {
+                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Generate Proof (${state.selectedIndices.size}/${state.indexedAttributes.size} attributes)")
+                                }
+                            }
+                        } else {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text(
+                                "✓ Proof generated — only ${state.selectedIndices.size} of ${state.indexedAttributes.size} attributes revealed",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            val presBitmap: Bitmap = remember(state.presentationJson) {
+                                QrCodeUtils.generate(state.presentationJson!!)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Image(
+                                    bitmap = presBitmap.asImageBitmap(),
+                                    contentDescription = "Selective disclosure QR",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .size(300.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)),
+                                )
+                            }
+                            val clipboard = LocalClipboardManager.current
+                            var copiedPres by remember { mutableStateOf(false) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                            ) {
+                                TextButton(onClick = {
+                                    clipboard.setText(AnnotatedString(state.presentationJson!!))
+                                    copiedPres = true
+                                }) {
+                                    Icon(
+                                        if (copiedPres) Icons.Default.Check else Icons.Default.ContentCopy,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(if (copiedPres) "Copied!" else "Copy proof")
+                                }
+                                TextButton(onClick = { vm.clearPresentation() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("New proof")
+                                }
                             }
                         }
                     }

@@ -376,7 +376,32 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val iconColor = if (result.isStudent) ValidGreen else RevokedRed
+        // Determine display based on what was disclosed
+        val icon: androidx.compose.ui.graphics.vector.ImageVector
+        val iconColor: Color
+        val title: String
+        val subtitle: String
+
+        when (result.isStudent) {
+            true -> {
+                icon = Icons.Default.CheckCircle
+                iconColor = ValidGreen
+                title = "Student Verified"
+                subtitle = "This credential is valid and authentic"
+            }
+            false -> {
+                icon = Icons.Default.Cancel
+                iconColor = RevokedRed
+                title = "Not a Student"
+                subtitle = "Credential is valid, but holder is not marked as a student"
+            }
+            null -> {
+                icon = Icons.Default.Verified
+                iconColor = ValidGreen
+                title = "Credential Valid"
+                subtitle = "Signature verified — student status was not disclosed"
+            }
+        }
 
         // Large icon
         Surface(
@@ -385,44 +410,43 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
             modifier = Modifier.size(80.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    if (result.isStudent) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = iconColor,
-                )
+                Icon(icon, contentDescription = null, modifier = Modifier.size(48.dp), tint = iconColor)
             }
         }
         Spacer(Modifier.height(16.dp))
         Text(
-            if (result.isStudent) "Student Verified" else "Not a Student",
+            title,
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
             color = iconColor,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            if (result.isStudent) "This credential is valid and authentic"
-            else "Credential is valid, but holder is not marked as a student",
+            subtitle,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
         Spacer(Modifier.height(20.dp))
 
-        // Detail rows
+        // Detail rows — only show disclosed attributes
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                DetailRow(
-                    icon = Icons.Default.Badge,
-                    label = "Student status",
-                    value = if (result.isStudent) "Active ✓" else "Not a student",
-                    valueColor = if (result.isStudent) ValidGreen else RevokedRed,
-                )
+                var hasRow = false
+
+                if (result.isStudent != null) {
+                    DetailRow(
+                        icon = Icons.Default.Badge,
+                        label = "Student status",
+                        value = if (result.isStudent) "Active ✓" else "Not a student",
+                        valueColor = if (result.isStudent) ValidGreen else RevokedRed,
+                    )
+                    hasRow = true
+                }
                 if (!result.universityId.isNullOrBlank()) {
-                    HorizontalDivider(
+                    if (hasRow) HorizontalDivider(
                         modifier = Modifier.padding(vertical = 10.dp),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
                     )
@@ -431,22 +455,22 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
                         label = "University",
                         value = result.universityId,
                     )
+                    hasRow = true
                 }
                 if (result.validUntil != null) {
-                    if (!result.universityId.isNullOrBlank()) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                        )
-                    }
+                    if (hasRow) HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                    )
                     DetailRow(
                         icon = Icons.Default.CalendarToday,
                         label = "Valid until",
                         value = DateUtils.formatIso(result.validUntil) ?: result.validUntil,
                     )
+                    hasRow = true
                 }
                 if (result.ageOver18 != null) {
-                    HorizontalDivider(
+                    if (hasRow) HorizontalDivider(
                         modifier = Modifier.padding(vertical = 10.dp),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
                     )
@@ -455,6 +479,15 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
                         label = "Age",
                         value = if (result.ageOver18) "18+ ✓" else "Under 18",
                         valueColor = if (result.ageOver18) ValidGreen else RevokedRed,
+                    )
+                    hasRow = true
+                }
+
+                if (!hasRow) {
+                    Text(
+                        "No attributes were disclosed in this presentation",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     )
                 }
             }
