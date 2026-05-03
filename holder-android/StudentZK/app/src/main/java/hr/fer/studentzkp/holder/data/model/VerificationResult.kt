@@ -14,6 +14,11 @@ sealed class VerificationResult {
     ) : VerificationResult()
 
     @Immutable
+    data class Expired(
+        val validUntil: String?,
+    ) : VerificationResult()
+
+    @Immutable
     data class Invalid(val reason: String) : VerificationResult()
 
     @Immutable

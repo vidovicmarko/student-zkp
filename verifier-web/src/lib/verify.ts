@@ -207,106 +207,6 @@ export async function verifyBbsCredential(
   }
 }
 
-/**
- * Verify a BBS+ selective-disclosure presentation.
- * The proof is already derived — verify directly against issuer public key.
- */
-export async function verifyBbsSelectivePresentation(
-  presentationJson: string,
-  issuerBaseUrl: string,
-): Promise<VerifyResult> {
-  const { verifyProof } = await import('@mattrglobal/bbs-signatures')
-  const presentation = JSON.parse(presentationJson) as Record<string, unknown>
-  const proof = presentation.proof as Record<string, unknown>
-  if (!proof) throw new Error('Presentation missing proof field')
-
-  // Extract verification method to determine issuer key URL
-  const verificationMethod = proof.verificationMethod as string
-  let keyBaseUrl = issuerBaseUrl
-  if (verificationMethod) {
-    try {
-      const url = new URL(verificationMethod)
-      keyBaseUrl = `${url.protocol}//${url.host}`
-    } catch { /* use issuerBaseUrl fallback */ }
-  }
-
-  // Fetch issuer's public key
-  const pubKeyUrl = new URL('/.well-known/studentzkp-bbs-key.json', keyBaseUrl)
-  const pubKeyRes = await fetch(pubKeyUrl.toString(), { credentials: 'omit' })
-  if (!pubKeyRes.ok) {
-    throw new Error(`Failed to fetch issuer BBS public key: ${pubKeyRes.status} ${pubKeyRes.statusText}`)
-  }
-  const pubKeyDoc = (await pubKeyRes.json()) as Record<string, unknown>
-  const pubKeyB64 = pubKeyDoc.publicKey as string
-  if (!pubKeyB64) throw new Error('Public key document missing publicKey field')
-  const publicKeyBytes = base64UrlToBytes(pubKeyB64)
-
-  // Extract proof components
-  const derivedProofB64 = proof.derivedProofValue as string
-  if (!derivedProofB64) throw new Error('Proof missing derivedProofValue')
-  const derivedProofBytes = base64UrlToBytes(derivedProofB64)
-  const disclosedMessages = proof.disclosedMessages as string[]
-  const totalMessageCount = proof.totalMessageCount as number
-  const nonce = proof.nonce as string ?? 'selective-disclosure'
-
-  // Verify the derived BBS proof
-  const proofRes = await verifyProof({
-    proof: derivedProofBytes,
-    publicKey: publicKeyBytes,
-    messages: disclosedMessages.map((m) => textEncoder.encode(m)),
-    nonce: textEncoder.encode(nonce),
-  })
-  if (!proofRes.verified) {
-    throw new Error(`BBS-2023 selective-disclosure proof verification failed: ${proofRes.error ?? 'unknown error'}`)
-  }
-
-  // Parse disclosed attributes
-  const revealed: Record<string, unknown> = {}
-  for (const msg of disclosedMessages) {
-    const eqIdx = msg.indexOf('=')
-    if (eqIdx < 0) continue
-    const key = msg.substring(0, eqIdx)
-    const val_ = msg.substring(eqIdx + 1)
-    // Strip the "credentialSubject." prefix for display
-    const displayKey = key.startsWith('credentialSubject.') ? key.substring('credentialSubject.'.length) : key
-    try { revealed[displayKey] = JSON.parse(val_) } catch { revealed[displayKey] = val_ }
-  }
-
-  const hiddenCount = totalMessageCount - disclosedMessages.length
-  const proofHash = await sha256Base64Url(derivedProofB64)
-
-  // Revocation check
-  let revoked: boolean | null = null
-  const status = presentation.credentialStatus as { statusListIndex?: number; statusListCredential?: string } | null
-  if (status?.statusListIndex !== undefined && status?.statusListCredential) {
-    try {
-      const listRes = await fetch(status.statusListCredential, { credentials: 'omit' })
-      if (listRes.ok) {
-        const listJson = (await listRes.json()) as { status_list: { bits: number; lst: string } }
-        const compressed = base64UrlToBytes(listJson.status_list.lst)
-        const decompressed = pako.inflate(compressed)
-        const byte = decompressed[status.statusListIndex >>> 3] ?? 0
-        const bit = (byte >> (status.statusListIndex & 7)) & 1
-        revoked = bit === 1
-      }
-    } catch { /* offline */ }
-  }
-
-  return {
-    format: 'bbs-2023',
-    signatureValid: true,
-    revoked,
-    issuer: String(presentation.issuer ?? ''),
-    vct: '',
-    validUntil: (presentation.validUntil as string) ?? null,
-    revealed,
-    hiddenCount,
-    keyBinding: { state: 'absent' },
-    proofHash,
-    raw: { credential: presentation, proof },
-  }
-}
-
 export async function verifySdJwtVc(
   compact: string,
   issuerBaseUrl: string,
@@ -486,15 +386,12 @@ export async function verifyPresentation(
     result = await verifySdJwtVc(trimmed, issuerBaseUrl, options)
   } else {
     try {
-      const parsed = JSON.parse(trimmed)
-      if (parsed.type === 'BbsSelectiveDisclosure') {
-        result = await verifyBbsSelectivePresentation(trimmed, issuerBaseUrl)
-      } else {
-        result = await verifyBbsCredential(trimmed, issuerBaseUrl)
-      }
+      result = await verifyBbsCredential(trimmed, issuerBaseUrl)
     } catch (e) {
+      // If BBS parsing fails, might be malformed SD-JWT-VC
       throw new Error(
-        `Failed to verify credential. Error: ${e instanceof Error ? e.message : String(e)}`
+        `Failed to verify as either SD-JWT-VC or BBS-2023. ` +
+          `SD-JWT-VC should contain ~, BBS should be valid JSON. Error: ${e instanceof Error ? e.message : String(e)}`
       )
     }
   }

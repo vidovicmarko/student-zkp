@@ -7,9 +7,9 @@ spring:
     group:
       local: dev-shortcut
   datasource:
-    url: jdbc:postgresql://ep-dawn-bird-alqvrfvs-pooler.c-3.eu-central-1.aws.neon.tech/studentzkp
-    username: neondb_owner
-    password: npg_x4hsDPfdGKS7
+    url: jdbc:postgresql://localhost:5432/studentzkp
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:mama5337}
   jpa:
     hibernate.ddl-auto: validate
     open-in-view: false

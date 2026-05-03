@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.time.Instant
 
 object DateUtils {
     private val displayFormat = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
@@ -39,4 +40,11 @@ object DateUtils {
     /** Format epoch millis with time, e.g. "May 3, 2026 at 22:50". */
     fun formatEpochWithTime(epochMillis: Long): String =
         displayWithTimeFormat.format(Date(epochMillis))
+
+    /** Returns true when an ISO-8601 instant is before the current moment. */
+    fun isExpired(isoInstant: String?): Boolean {
+        if (isoInstant.isNullOrBlank()) return false
+        val expiresAt = runCatching { Instant.parse(isoInstant) }.getOrNull() ?: return false
+        return Instant.now().isAfter(expiresAt)
+    }
 }

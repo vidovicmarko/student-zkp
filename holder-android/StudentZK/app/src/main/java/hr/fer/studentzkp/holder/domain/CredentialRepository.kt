@@ -8,6 +8,7 @@ import hr.fer.studentzkp.holder.data.model.VerificationResult
 import hr.fer.studentzkp.holder.data.network.IssuerApiClient
 import hr.fer.studentzkp.holder.util.BbsVcUtils
 import hr.fer.studentzkp.holder.util.HolderKeyManager
+import hr.fer.studentzkp.holder.util.DateUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.zip.Inflater
@@ -137,6 +138,10 @@ class CredentialRepository(private val store: CredentialStore) {
         val ageOver18Str = disclosed["credentialSubject.age_equal_or_over.18"]
         val ageOver18 = ageOver18Str?.toBooleanStrictOrNull()
 
+        if (DateUtils.isExpired(pres.validUntil)) {
+            return VerificationResult.Expired(pres.validUntil)
+        }
+
         // Revocation check (fail-soft)
         var statusOk: Boolean? = null
         var revoked = false
@@ -174,6 +179,10 @@ class CredentialRepository(private val store: CredentialStore) {
         }
 
         val info = BbsVcUtils.extractStudentInfo(data)
+
+        if (DateUtils.isExpired(info.validUntil)) {
+            return VerificationResult.Expired(info.validUntil)
+        }
 
         val pubKeyBytes = try {
             fetchPublicKey(data.proof.optString("verificationMethod"))

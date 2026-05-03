@@ -352,6 +352,7 @@ private fun ResultPanel(
             } else {
                 when (val r = result) {
                     is VerificationResult.Valid -> ValidResultContent(r)
+                    is VerificationResult.Expired -> ExpiredResultContent(r.validUntil)
                     is VerificationResult.Invalid -> InvalidResultContent(r.reason)
                     is VerificationResult.Revoked -> RevokedResultContent(r.statusIdx)
                     else -> {}
@@ -645,6 +646,67 @@ private fun RevokedResultContent(statusIdx: Int) {
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "Status index: $statusIdx",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpiredResultContent(validUntil: String?) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val expiredColor = Color(0xFFFF9800)
+
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = expiredColor.copy(alpha = 0.12f),
+            modifier = Modifier.size(80.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = expiredColor,
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            "Credential Expired",
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            color = expiredColor,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "This credential is no longer valid",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+        Spacer(Modifier.height(12.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = expiredColor.copy(alpha = 0.08f),
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Event,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = expiredColor.copy(alpha = 0.75f),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Expired at: ${validUntil?.let { DateUtils.formatIso(it) ?: it } ?: "unknown"}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )
