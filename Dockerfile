@@ -26,4 +26,4 @@ COPY --from=crypto /build/target/release/libstudentzkp_crypto.so /app/lib/
 ENV LD_LIBRARY_PATH=/app/lib
 ENV JAVA_TOOL_OPTIONS="-Djna.library.path=/app/lib"
 EXPOSE 8080
-CMD ["sh", "-c", "java -jar /app/app.jar --server.port=$PORT --spring.profiles.active=dev-shortcut"]
+CMD ["sh", "-c", "echo '=== /app/lib contents ==='; ls -la /app/lib/ || echo 'MISSING'; echo '=== LD_LIBRARY_PATH:' \"$LD_LIBRARY_PATH\"; echo '=== JAVA_TOOL_OPTIONS:' \"$JAVA_TOOL_OPTIONS\"; java -jar /app/app.jar --server.port=$PORT --spring.profiles.active=dev-shortcut"]
