@@ -18,11 +18,6 @@ data class DetailUiState(
     val credential: StoredCredential? = null,
     val attributeNames: List<String> = emptyList(),
     val showDeleteDialog: Boolean = false,
-    val showPresentDialog: Boolean = false,
-    val nonceInput: String = "",
-    val audienceInput: String = "",
-    val presentation: String? = null,
-    val presentationError: String? = null,
 )
 
 class CredentialDetailViewModel(
@@ -55,47 +50,6 @@ class CredentialDetailViewModel(
             _uiState.value = DetailUiState(
                 credential = cred,
                 attributeNames = attrs,
-            )
-        }
-    }
-
-    fun openPresentDialog() {
-        _uiState.value = _uiState.value.copy(
-            showPresentDialog = true,
-            nonceInput = "",
-            audienceInput = "",
-            presentation = null,
-            presentationError = null,
-        )
-    }
-
-    fun dismissPresentDialog() {
-        _uiState.value = _uiState.value.copy(showPresentDialog = false)
-    }
-
-    fun onNonceChanged(v: String) {
-        _uiState.value = _uiState.value.copy(nonceInput = v, presentationError = null)
-    }
-
-    fun onAudienceChanged(v: String) {
-        _uiState.value = _uiState.value.copy(audienceInput = v, presentationError = null)
-    }
-
-    fun generatePresentation() {
-        val s = _uiState.value
-        val nonce = s.nonceInput.trim()
-        val audience = s.audienceInput.trim()
-        if (nonce.isEmpty() || audience.isEmpty()) {
-            _uiState.value = s.copy(presentationError = "Nonce and audience are required")
-            return
-        }
-        viewModelScope.launch {
-            val result = withContext(Dispatchers.Default) {
-                repository.buildPresentation(credentialId, nonce, audience)
-            }
-            result.fold(
-                onSuccess = { _uiState.value = _uiState.value.copy(presentation = it, presentationError = null) },
-                onFailure = { _uiState.value = _uiState.value.copy(presentation = null, presentationError = it.message ?: "Failed to build presentation") },
             )
         }
     }
