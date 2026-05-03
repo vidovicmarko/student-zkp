@@ -7,6 +7,7 @@ import java.util.TimeZone
 
 object DateUtils {
     private val displayFormat = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+    private val displayWithTimeFormat = SimpleDateFormat("MMM d, yyyy 'at' HH:mm", Locale.getDefault())
 
     private val iso8601Formats = listOf(
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") },
@@ -34,4 +35,8 @@ object DateUtils {
     /** Format epoch millis to display format. */
     fun formatEpoch(epochMillis: Long): String =
         displayFormat.format(Date(epochMillis))
+
+    /** Format epoch millis with time, e.g. "May 3, 2026 at 22:50". */
+    fun formatEpochWithTime(epochMillis: Long): String =
+        displayWithTimeFormat.format(Date(epochMillis))
 }

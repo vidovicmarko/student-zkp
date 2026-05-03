@@ -29,7 +29,6 @@ import hr.fer.studentzkp.holder.domain.CredentialRepository
 import hr.fer.studentzkp.holder.ui.detail.CredentialDetailScreen
 import hr.fer.studentzkp.holder.ui.scan.ScanScreen
 import hr.fer.studentzkp.holder.ui.settings.SettingsScreen
-import hr.fer.studentzkp.holder.ui.verify.VerifyResultScreen
 import hr.fer.studentzkp.holder.ui.wallet.WalletScreen
 
 private const val NAV_ANIM_DURATION = 300
@@ -90,15 +89,7 @@ fun AppNavHost(navController: NavHostController) {
             )
         }
         composable(Screen.Scan.route) {
-            ScanScreen(
-                repository = repo,
-                onNavigateToResult = {
-                    navController.navigate(Screen.VerifyResult.route)
-                },
-            )
-        }
-        composable(Screen.VerifyResult.route) {
-            VerifyResultScreen(onBack = { navController.popBackStack() })
+            ScanScreen(repository = repo)
         }
         composable(Screen.Settings.route) {
             SettingsScreen(

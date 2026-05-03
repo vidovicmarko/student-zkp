@@ -75,11 +75,4 @@ class WalletViewModel(private val repository: CredentialRepository) : ViewModel(
                 }
         }
     }
-
-    fun deleteCredential(id: String) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { repository.deleteCredential(id) }
-            loadCredentials()
-        }
-    }
 }

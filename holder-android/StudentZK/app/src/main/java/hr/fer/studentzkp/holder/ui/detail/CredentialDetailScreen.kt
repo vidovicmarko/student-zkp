@@ -31,8 +31,6 @@ import hr.fer.studentzkp.holder.ui.theme.CardGradientEnd
 import hr.fer.studentzkp.holder.ui.theme.CardGradientStart
 import hr.fer.studentzkp.holder.util.DateUtils
 import hr.fer.studentzkp.holder.util.QrCodeUtils
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -184,7 +182,7 @@ fun CredentialDetailScreen(
                         DetailRow(icon = Icons.Default.AccountBalance, label = "University ID", value = cred.universityId)
                     }
                     DetailRow(icon = Icons.Default.Fingerprint, label = "Credential ID", value = cred.id.take(16) + "…")
-                    DetailRow(icon = Icons.Default.CalendarToday, label = "Issued", value = formatDate(cred.issuedAt))
+                    DetailRow(icon = Icons.Default.CalendarToday, label = "Issued", value = DateUtils.formatEpochWithTime(cred.issuedAt))
                 }
             }
 
@@ -379,6 +377,3 @@ private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 private fun SelectionContainer(content: @Composable () -> Unit) {
     androidx.compose.foundation.text.selection.SelectionContainer(content = content)
 }
-
-private fun formatDate(epochMillis: Long): String =
-    SimpleDateFormat("MMM d, yyyy 'at' HH:mm", Locale.getDefault()).format(Date(epochMillis))

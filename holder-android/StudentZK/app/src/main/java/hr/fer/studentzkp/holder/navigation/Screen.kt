@@ -7,5 +7,4 @@ sealed class Screen(val route: String) {
     object CredentialDetail : Screen("credential_detail/{credentialId}") {
         fun createRoute(credentialId: String) = "credential_detail/$credentialId"
     }
-    object VerifyResult : Screen("verify_result")
 }

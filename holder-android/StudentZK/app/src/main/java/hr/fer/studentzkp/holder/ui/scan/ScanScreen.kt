@@ -47,7 +47,6 @@ import java.util.concurrent.Executors
 @Composable
 fun ScanScreen(
     repository: CredentialRepository,
-    onNavigateToResult: () -> Unit,
 ) {
     val vm: ScanViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
