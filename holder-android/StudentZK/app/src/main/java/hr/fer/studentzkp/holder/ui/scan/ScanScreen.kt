@@ -40,6 +40,7 @@ import hr.fer.studentzkp.holder.domain.CredentialRepository
 import hr.fer.studentzkp.holder.ui.theme.ValidGreen
 import hr.fer.studentzkp.holder.ui.theme.RevokedRed
 import hr.fer.studentzkp.holder.util.DateUtils
+import hr.fer.studentzkp.holder.util.QrCodeUtils
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,7 +199,7 @@ private fun PasteVerifyPanel(
                 Text("Paste")
             }
             Button(
-                onClick = { onVerify(input.trim()) },
+                onClick = { onVerify(QrCodeUtils.decompress(input.trim())) },
                 enabled = input.isNotBlank() && !isVerifying,
                 modifier = Modifier.weight(1f),
             ) {
@@ -267,7 +268,7 @@ private fun CameraPreviewWithOverlay(
                                         .addOnSuccessListener { barcodes ->
                                             barcodes.firstOrNull { it.format == Barcode.FORMAT_QR_CODE }
                                                 ?.rawValue
-                                                ?.let(onQrDetected)
+                                                ?.let { raw -> onQrDetected(QrCodeUtils.decompress(raw)) }
                                         }
                                         .addOnCompleteListener { imageProxy.close() }
                                 } else {
