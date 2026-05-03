@@ -31,10 +31,13 @@ class BbsIssuerKeyService(
 
     private val log = LoggerFactory.getLogger(BbsIssuerKeyService::class.java)
 
-    val keypair: BbsCrypto.Keypair = loadOrGenerate()
+    // Lazy so the bean can be created on hosts where the crypto-core cdylib
+    // isn't on the JNA path yet — JNA load deferred until first BBS endpoint
+    // call. Issuance code already best-effort-wraps BBS calls in runCatching.
+    val keypair: BbsCrypto.Keypair by lazy { loadOrGenerate() }
 
     /** Stable id derived from the public key bytes; rotates when the key does. */
-    val kid: String = sha256B64Url(keypair.publicKey)
+    val kid: String by lazy { sha256B64Url(keypair.publicKey) }
 
     /** Base64url-encoded ark-serialize compressed public key. */
     fun publicKeyB64Url(): String = b64url(keypair.publicKey)
