@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher.antMatcher
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -45,37 +46,39 @@ class SecurityConfig(
             .authorizeHttpRequests { auth ->
                 // Public, unauthenticated routes — wallets and verifiers hit
                 // these without credentials.
+                // antMatcher() forces path-based matching instead of Spring 6.4's
+                // MvcRequestMatcher default. MvcRequestMatcher requires Spring MVC
+                // to have a registered handler for the path — if a controller bean
+                // fails to create, its path 401s instead of 404ing, which makes
+                // misconfiguration vs. missing-route indistinguishable.
                 auth.requestMatchers(
-                    "/health",
-                    "/actuator/health",
-                    "/.well-known/**",
-                    "/statuslist/**",
+                    antMatcher("/health"),
+                    antMatcher("/actuator/health"),
+                    antMatcher("/.well-known/**"),
+                    antMatcher("/statuslist/**"),
                     // OID4VCI public surface (final_plan §5.1, ROADMAP Phase 1.5).
-                    "/credential-offer/**",
-                    "/token",
-                    "/credential",
-                    // Swagger UI + OpenAPI spec (springdoc). Consumed by the
-                    // swagger-api MCP server during dev and by humans browsing
-                    // /swagger-ui.html. Lock these down behind admin auth in
-                    // prod once stakeholders no longer need anonymous access.
-                    "/v3/api-docs",
-                    "/v3/api-docs/**",
-                    "/swagger-ui",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
+                    antMatcher("/credential-offer/**"),
+                    antMatcher("/token"),
+                    antMatcher("/credential"),
+                    // Swagger UI + OpenAPI spec (springdoc).
+                    antMatcher("/v3/api-docs"),
+                    antMatcher("/v3/api-docs/**"),
+                    antMatcher("/swagger-ui"),
+                    antMatcher("/swagger-ui/**"),
+                    antMatcher("/swagger-ui.html"),
                 ).permitAll()
 
                 // Dev shortcuts: open when the dev-shortcut profile is active,
                 // refused at the firewall otherwise. Defense in depth — the
                 // controllers themselves are also @Profile("dev-shortcut").
                 if (devShortcut) {
-                    auth.requestMatchers("/dev/**").permitAll()
+                    auth.requestMatchers(antMatcher("/dev/**")).permitAll()
                 } else {
-                    auth.requestMatchers("/dev/**").denyAll()
+                    auth.requestMatchers(antMatcher("/dev/**")).denyAll()
                 }
 
                 // Privileged surfaces: HTTP Basic against the admin user.
-                auth.requestMatchers("/integrity/**", "/admin/**").authenticated()
+                auth.requestMatchers(antMatcher("/integrity/**"), antMatcher("/admin/**")).authenticated()
                 auth.anyRequest().denyAll()
             }
         return http.build()
