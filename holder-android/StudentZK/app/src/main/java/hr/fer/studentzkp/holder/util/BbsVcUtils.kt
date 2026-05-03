@@ -102,6 +102,17 @@ object BbsVcUtils {
     }
 
     /**
+     * Extract the key ID (`kid`) from the proof's verificationMethod fragment.
+     * e.g. "http://…/studentzkp-bbs-key.json#abc123" → "abc123"
+     */
+    fun extractKid(data: BbsVcData): String? {
+        val vm = data.proof.optString("verificationMethod")
+        if (vm.isNullOrEmpty()) return null
+        val fragment = vm.substringAfter('#', "")
+        return fragment.takeIf { it.isNotEmpty() }
+    }
+
+    /**
      * Get disclosed attribute names from the canonical messages.
      * Messages are "credentialSubject.attr_name=value" — extract the attr part.
      */
