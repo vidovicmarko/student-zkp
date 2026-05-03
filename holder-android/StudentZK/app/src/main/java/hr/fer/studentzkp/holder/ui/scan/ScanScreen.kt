@@ -376,30 +376,33 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Large check icon
+        val iconColor = if (result.isStudent) ValidGreen else RevokedRed
+
+        // Large icon
         Surface(
             shape = RoundedCornerShape(50),
-            color = ValidGreen.copy(alpha = 0.15f),
+            color = iconColor.copy(alpha = 0.15f),
             modifier = Modifier.size(80.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Default.CheckCircle,
+                    if (result.isStudent) Icons.Default.CheckCircle else Icons.Default.Cancel,
                     contentDescription = null,
                     modifier = Modifier.size(48.dp),
-                    tint = ValidGreen,
+                    tint = iconColor,
                 )
             }
         }
         Spacer(Modifier.height(16.dp))
         Text(
-            "Student Verified",
+            if (result.isStudent) "Student Verified" else "Not a Student",
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-            color = ValidGreen,
+            color = iconColor,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "This credential is valid and authentic",
+            if (result.isStudent) "This credential is valid and authentic"
+            else "Credential is valid, but holder is not marked as a student",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
@@ -412,7 +415,17 @@ private fun ValidResultContent(result: VerificationResult.Valid) {
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                DetailRow(
+                    icon = Icons.Default.Badge,
+                    label = "Student status",
+                    value = if (result.isStudent) "Active ✓" else "Not a student",
+                    valueColor = if (result.isStudent) ValidGreen else RevokedRed,
+                )
                 if (!result.universityId.isNullOrBlank()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                    )
                     DetailRow(
                         icon = Icons.Default.School,
                         label = "University",
