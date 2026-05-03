@@ -197,10 +197,18 @@ private fun CredentialCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ValidBadge(isValid = credential.isStudent)
+                    if (DateUtils.isExpired(credential.validUntil)) {
+                        ExpiredBadge()
+                    } else {
+                        ValidBadge(isValid = credential.isStudent)
+                    }
                     if (credential.validUntil != null) {
                         Text(
-                            text = "Valid until ${DateUtils.formatIso(credential.validUntil) ?: credential.validUntil}",
+                            text = if (DateUtils.isExpired(credential.validUntil)) {
+                                "Expired ${DateUtils.formatIso(credential.validUntil) ?: credential.validUntil}"
+                            } else {
+                                "Valid until ${DateUtils.formatIso(credential.validUntil) ?: credential.validUntil}"
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.75f),
                         )
@@ -236,6 +244,32 @@ private fun ValidBadge(isValid: Boolean) {
             Spacer(Modifier.width(4.dp))
             Text(
                 text = if (isValid) "Student" else "Not Student",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpiredBadge() {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = Color(0xFFFF9800).copy(alpha = 0.85f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.Schedule,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = Color.White,
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = "Expired",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.White,
             )
@@ -379,4 +413,3 @@ private fun HintCard() {
         }
     }
 }
-
